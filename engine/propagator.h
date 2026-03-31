@@ -11,8 +11,12 @@ constexpr double J2 = 1.08263e-3;
 struct Vec3 {
     double x, y, z;
     Vec3 operator+(const Vec3&) const;
+    Vec3 operator-(const Vec3&) const;
     Vec3 operator*(double) const;
+    Vec3 operator/(double) const;
     double norm() const;
+    double dot(const Vec3& other) const;
+    Vec3 cross(const Vec3& other) const;
 };
 
 struct StateVector {
@@ -25,9 +29,11 @@ struct OrbitalObject {
     std::string id;
     std::string type;   // "SATELLITE" or "DEBRIS"
     StateVector state;
+    StateVector nominal_slot;  // Reference unperturbed orbit
     double mass_dry;    // kg  (500.0 for sats, 0 for debris)
     double mass_fuel;   // kg  (50.0 for sats, 0 for debris)
     bool controllable;
+    double last_burn_time;  // seconds since J2000
 };
 
 // Function declarations

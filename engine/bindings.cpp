@@ -15,7 +15,13 @@ PYBIND11_MODULE(autocm_engine, m) {
         .def_readwrite("x", &Vec3::x)
         .def_readwrite("y", &Vec3::y)
         .def_readwrite("z", &Vec3::z)
-        .def("norm", &Vec3::norm);
+        .def("norm", &Vec3::norm)
+        .def("dot", &Vec3::dot)
+        .def("cross", &Vec3::cross)
+        .def("__add__", &Vec3::operator+)
+        .def("__sub__", &Vec3::operator-)
+        .def("__mul__", &Vec3::operator*)
+        .def("__truediv__", &Vec3::operator/);
     
     // StateVector
     py::class_<StateVector>(m, "StateVector")
@@ -30,9 +36,11 @@ PYBIND11_MODULE(autocm_engine, m) {
         .def_readwrite("id", &OrbitalObject::id)
         .def_readwrite("type", &OrbitalObject::type)
         .def_readwrite("state", &OrbitalObject::state)
+        .def_readwrite("nominal_slot", &OrbitalObject::nominal_slot)
         .def_readwrite("mass_dry", &OrbitalObject::mass_dry)
         .def_readwrite("mass_fuel", &OrbitalObject::mass_fuel)
-        .def_readwrite("controllable", &OrbitalObject::controllable);
+        .def_readwrite("controllable", &OrbitalObject::controllable)
+        .def_readwrite("last_burn_time", &OrbitalObject::last_burn_time);
     
     // CDMWarning
     py::class_<CDMWarning>(m, "CDMWarning")
@@ -69,7 +77,9 @@ PYBIND11_MODULE(autocm_engine, m) {
     m.def("run_conjunction_assessment", &run_conjunction_assessment);
     m.def("plan_evasion", &plan_evasion);
     m.def("plan_recovery", &plan_recovery);
-    m.def("apply_burn", &apply_burn);
+    m.def("apply_burn", [](OrbitalObject& sat, Vec3 dv_eci_kms, double current_time) {
+    return apply_burn(sat, dv_eci_kms, current_time);
+});
     m.def("needs_graveyard", &needs_graveyard);
     m.def("plan_graveyard", &plan_graveyard);
     m.def("fuel_consumed", &fuel_consumed);
