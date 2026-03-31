@@ -50,6 +50,10 @@ PYBIND11_MODULE(autocm_engine, m) {
         .def_readwrite("distance_km", &ConjunctionCandidate::distance_km)
         .def_readwrite("tca_seconds", &ConjunctionCandidate::tca_seconds);
     
+    // Mat3x3
+    py::class_<Mat3x3>(m, "Mat3x3")
+        .def(py::init<>());
+    
     // ManeuverPlan
     py::class_<ManeuverPlan>(m, "ManeuverPlan")
         .def(py::init<>())
@@ -63,4 +67,12 @@ PYBIND11_MODULE(autocm_engine, m) {
     // Free functions
     m.def("propagate", &propagate);
     m.def("run_conjunction_assessment", &run_conjunction_assessment);
+    m.def("plan_evasion", &plan_evasion);
+    m.def("plan_recovery", &plan_recovery);
+    m.def("apply_burn", &apply_burn);
+    m.def("needs_graveyard", &needs_graveyard);
+    m.def("plan_graveyard", &plan_graveyard);
+    m.def("fuel_consumed", &fuel_consumed);
+    m.def("eci_to_rtn_matrix", &eci_to_rtn_matrix);
+    m.def("rtn_to_eci", &rtn_to_eci);
 }
