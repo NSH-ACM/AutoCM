@@ -239,7 +239,11 @@ class AutonomyEngine:
             plan = ManeuverPlan()
             plan.burn_id = payload.get('burn_id', f"EXTERNAL_{sat_id}_{int(self.sim_time)}")
             plan.satellite_id = sat_id
-            plan.burn_time_offset_s = payload.get('burn_time_offset_s', 0.0)
+            
+            # Enforce 10-second signal latency on all burn scheduling
+            original_offset = payload.get('burn_time_offset_s', 0.0)
+            plan.burn_time_offset_s = max(10.0, original_offset)  # Minimum 10s from now
+            
             plan.dv_eci_kms = dv_eci
             plan.estimated_fuel_kg = required_fuel
             plan.is_recovery = payload.get('is_recovery', False)
