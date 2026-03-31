@@ -33,7 +33,7 @@ struct Mat3x3 {
 Mat3x3 eci_to_rtn_matrix(const Vec3& r, const Vec3& v);
 Vec3 rtn_to_eci(const Vec3& dv_rtn, const Vec3& r, const Vec3& v);
 double fuel_consumed(double dv_ms, double mass_current_kg);
-bool apply_burn(OrbitalObject& sat, Vec3 dv_eci_kms);
+bool apply_burn(OrbitalObject& sat, Vec3 dv_eci_kms, double current_time);
 ManeuverPlan plan_evasion(const OrbitalObject& sat, const CDMWarning& cdm);
 ManeuverPlan plan_recovery(const OrbitalObject& sat, const StateVector& nominal_slot, double time_offset_seconds);
 bool needs_graveyard(const OrbitalObject& sat);

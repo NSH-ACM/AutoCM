@@ -47,7 +47,7 @@ double fuel_consumed(double dv_ms, double mass_current_kg) {
     return mass_current_kg * (1.0 - exp(-dv_ms / (ISP * G0 * 1000.0)));
 }
 
-bool apply_burn(OrbitalObject& sat, Vec3 dv_eci_kms) {
+bool apply_burn(OrbitalObject& sat, Vec3 dv_eci_kms, double current_time) {
     // Check thrust limit (15 m/s = 0.015 km/s)
     double dv_magnitude = sqrt(dv_eci_kms.x * dv_eci_kms.x + 
                               dv_eci_kms.y * dv_eci_kms.y + 
@@ -74,6 +74,7 @@ bool apply_burn(OrbitalObject& sat, Vec3 dv_eci_kms) {
     sat.state.v.y += dv_eci_kms.y;
     sat.state.v.z += dv_eci_kms.z;
     sat.mass_fuel -= delta_m;
+    sat.last_burn_time = current_time;  // Update last burn time
     
     return true;
 }

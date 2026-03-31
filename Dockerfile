@@ -21,13 +21,21 @@ RUN cd engine && mkdir -p build && cd build \
     && touch .keep
 
 # ── Stage 2: Application ─────────────────────────────────────────────────
-FROM python:3.11-slim
+FROM ubuntu:22.04
 
 WORKDIR /app
 
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install Python and dependencies
+RUN apt-get update && apt-get install -y \
+    python3 python3-pip python3-dev \
+    && pip3 install --no-cache-dir fastapi uvicorn pydantic \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
 # Install Python dependencies
 COPY api/requirements.txt ./requirements.txt
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip3 install --no-cache-dir -r requirements.txt
 
 # Copy C++ engine artifacts (will copy .keep if build failed)
 COPY --from=cpp-builder /build/engine/build/ ./engine/build/
@@ -37,6 +45,6 @@ COPY api/ ./api/
 COPY data/ ./data/
 COPY frontend/ ./frontend/
 
-EXPOSE 8001
+EXPOSE 8000
 
-CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8001"]
+CMD ["python3", "-m", "uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000"]

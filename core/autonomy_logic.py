@@ -64,6 +64,7 @@ class AutonomyEngine:
             sat.controllable = sat_data['controllable']
             sat.mass_dry = sat_data['mass_dry']
             sat.mass_fuel = sat_data['mass_fuel']
+            sat.last_burn_time = -600.0  # Initialize to -600s to allow immediate burns
             
             # State vector
             state = sat_data['state']
@@ -79,6 +80,12 @@ class AutonomyEngine:
                 sat.nominal_slot.t = nominal['t']
                 sat.nominal_slot.r = Vec3(nominal['r']['x'], nominal['r']['y'], nominal['r']['z'])
                 sat.nominal_slot.v = Vec3(nominal['v']['x'], nominal['v']['y'], nominal['v']['z'])
+            else:
+                # If no nominal slot, use current state
+                sat.nominal_slot = StateVector()
+                sat.nominal_slot.t = sat.state.t
+                sat.nominal_slot.r = Vec3(sat.state.r.x, sat.state.r.y, sat.state.r.z)
+                sat.nominal_slot.v = Vec3(sat.state.v.x, sat.state.v.y, sat.state.v.z)
             
             self.satellites[sat.id] = sat
         
@@ -90,6 +97,7 @@ class AutonomyEngine:
             deb.controllable = deb_data['controllable']
             deb.mass_dry = deb_data['mass_dry']
             deb.mass_fuel = deb_data['mass_fuel']
+            deb.last_burn_time = -600.0  # Not applicable for debris
             
             # State vector
             state = deb_data['state']
@@ -166,7 +174,7 @@ class AutonomyEngine:
                     sat = self.satellites[warning.satellite_id]
                     
                     # Check cooldown
-                    last_burn_time = self.cooldown_tracker.get(warning.satellite_id, -600)
+                    last_burn_time = sat.last_burn_time
                     cooldown_remaining = 600 - (self.sim_time - last_burn_time)
                     
                     evasion_plan = plan_evasion(sat, warning)
@@ -231,7 +239,11 @@ class AutonomyEngine:
             plan = ManeuverPlan()
             plan.burn_id = payload.get('burn_id', f"EXTERNAL_{sat_id}_{int(self.sim_time)}")
             plan.satellite_id = sat_id
-            plan.burn_time_offset_s = payload.get('burn_time_offset_s', 0.0)
+            
+            # Enforce 10-second signal latency on all burn scheduling
+            original_offset = payload.get('burn_time_offset_s', 0.0)
+            plan.burn_time_offset_s = max(10.0, original_offset)  # Minimum 10s from now
+            
             plan.dv_eci_kms = dv_eci
             plan.estimated_fuel_kg = required_fuel
             plan.is_recovery = payload.get('is_recovery', False)
@@ -275,10 +287,11 @@ class AutonomyEngine:
         for plan in maneuvers_to_execute:
             if plan.satellite_id in self.satellites:
                 sat = self.satellites[plan.satellite_id]
+                burn_time = self.sim_time + plan.burn_time_offset_s
                 
-                if apply_burn(sat, plan.dv_eci_kms):
+                if apply_burn(sat, plan.dv_eci_kms, burn_time):
                     maneuvers_executed += 1
-                    self.cooldown_tracker[plan.satellite_id] = self.sim_time + plan.burn_time_offset_s
+                    self.cooldown_tracker[plan.satellite_id] = burn_time
         
         # Propagate all objects
         all_objects = list(self.satellites.values()) + list(self.debris.values())
