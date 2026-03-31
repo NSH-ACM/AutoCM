@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ORBITAL INSIGHT — Autonomous Constellation Manager</title>
+  <meta name="description" content="Real-time mission control for autonomous satellite constellation management. Project AETHER — National Space Hackathon 2026.">
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600&family=Orbitron:wght@400;600;700&display=swap" rel="stylesheet">
+
+  <!-- CesiumJS -->
+  <link rel="stylesheet" href="https://cesium.com/downloads/cesiumjs/releases/1.114/Build/Cesium/Widgets/widgets.css">
+  <script src="https://cesium.com/downloads/cesiumjs/releases/1.114/Build/Cesium/Cesium.js"></script>
+
+  <!-- D3 / GSAP / Split.js / Lucide -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/split.js/1.6.5/split.min.js"></script>
+  <script src="https://unpkg.com/lucide@0.344.0/dist/umd/lucide.min.js"></script>
+
+  <!-- Design System -->
+  <link rel="stylesheet" href="css/main.css">
+  <link rel="stylesheet" href="css/panels.css">
+  <link rel="stylesheet" href="css/animations.css">
+</head>
+<body>
+
+  <!-- ── Cinematic background layers ── -->
+  <canvas id="particle-canvas"></canvas>
+  <div id="vignette"></div>
+  <div id="holo-scan"></div>
+  <div id="scanline-overlay"></div>
+
+  <!-- ── Toast container ── -->
+  <div id="toast-container"></div>
+
+  <!-- ── Satellite detail drawer ── -->
+  <div id="drawer-overlay"></div>
+  <div id="sat-drawer">
+    <div class="drawer-header">
+      <span class="drawer-title">
+        <i data-lucide="satellite"></i>
+        Satellite Detail
+      </span>
+      <button id="drawer-close" class="drawer-close-btn">
+        <i data-lucide="x"></i>
+      </button>
+    </div>
+    <div id="drawer-body"></div>
+  </div>
+
+  <!-- ══════════════════════════════════════════ APP ══════════════════════════════════════════ -->
+  <div id="app">
+
+    <!-- TOP BAR -->
+    <header id="topbar">
+      <div class="topbar-left">
+        <span class="topbar-logo glitch-text" data-text="ORBITAL INSIGHT">ORBITAL INSIGHT</span>
+        <span class="topbar-separator">|</span>
+        <span class="topbar-mission">ACM // CONSTELLATION-1</span>
+      </div>
+
+      <div class="topbar-center">
+        <div class="live-dot" id="live-indicator"></div>
+        <span class="sim-clock typing-cursor" id="sim-clock">SIM 2026-03-12 08:00:00Z</span>
+      </div>
+
+      <div class="topbar-right">
+        <div class="stat-chip" id="chip-sats">
+          <span class="label">ACTIVE SATS</span>
+          <span class="value text-blue" id="stat-sats">0</span>
+        </div>
+        <div class="stat-chip" id="chip-debris">
+          <span class="label">DEBRIS</span>
+          <span class="value text-blue" id="stat-debris">0</span>
+        </div>
+        <div class="stat-chip" id="chip-cdms">
+          <span class="label">CRITICAL CDMS</span>
+          <span class="value text-red" id="stat-cdms">0</span>
+        </div>
+        <div class="stat-chip" id="chip-uptime">
+          <span class="label">FLEET UPTIME</span>
+          <span class="value text-green" id="stat-uptime">—</span>
+        </div>
+        <div class="stat-chip" id="chip-fuel">
+          <span class="label">AVG FUEL</span>
+          <span class="value text-green" id="stat-fuel">—</span>
+        </div>
+        <div class="stat-chip" id="chip-alerts">
+          <span class="label">ALERTS</span>
+          <span class="value text-amber" id="stat-alerts">0</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- SPEED CONTROL BAR -->
+    <div id="speed-bar"></div>
+
+    <!-- MAIN CONTENT -->
+    <main id="main-content">
+
+      <!-- UPPER ROW -->
+      <div id="upper-row">
+
+        <!-- 3D Globe -->
+        <div id="globe-panel" class="panel glass-panel">
+          <div class="panel-content">
+            <div id="cesium-container"></div>
+          </div>
+          <div class="globe-tooltip" id="globe-tooltip">
+            <div class="sat-id"></div>
+            <div class="sat-field"><span class="label">STATUS</span><span class="value"></span></div>
+            <div class="sat-field"><span class="label">FUEL</span><span class="value"></span></div>
+            <div class="sat-field"><span class="label">LAST BURN</span><span class="value"></span></div>
+          </div>
+        </div>
+
+        <!-- Conjunction Bullseye -->
+        <div id="bullseye-panel" class="panel glass-panel">
+          <div class="panel-content">
+            <div id="bullseye-header">
+              <div class="panel-title">
+                <i data-lucide="target"></i>
+                CONJUNCTION BULLSEYE
+              </div>
+              <span id="bullseye-sat-id">—</span>
+            </div>
+            <div id="bullseye-svg-container">
+              <svg id="bullseye-svg"></svg>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /upper-row -->
+
+      <!-- LOWER ROW -->
+      <div id="lower-row">
+
+        <!-- Fuel Gauges -->
+        <div id="fuel-panel" class="panel glass-panel">
+          <div class="panel-content">
+            <div class="panel-title">
+              <i data-lucide="fuel"></i>
+              FUEL STATUS
+            </div>
+            <div id="fuel-list"></div>
+          </div>
+        </div>
+
+        <!-- Maneuver Gantt -->
+        <div id="gantt-panel" class="panel glass-panel">
+          <div class="panel-content">
+            <div class="panel-title">
+              <i data-lucide="calendar-clock"></i>
+              MANEUVER TIMELINE
+            </div>
+            <div id="gantt-svg-container">
+              <svg id="gantt-svg"></svg>
+            </div>
+            <div class="gantt-tooltip" id="gantt-tooltip"></div>
+          </div>
+        </div>
+
+        <!-- Telemetry / CDM / Health -->
+        <div id="telemetry-panel" class="panel glass-panel">
+          <div class="panel-content telemetry-content">
+            <div class="panel-title">
+              <i data-lucide="alert-triangle"></i>
+              LATEST CDMS
+            </div>
+            <div class="cdm-section" id="cdm-list"></div>
+
+            <div class="dv-section">
+              <div class="dv-section-header">
+                <i data-lucide="trending-up"></i>
+                ΔV COST
+              </div>
+              <svg id="dv-chart"></svg>
+              <div class="dv-annotation">
+                <span>Last 20 steps</span>
+                <span class="dv-total" id="dv-total">0.00 m/s</span>
+              </div>
+            </div>
+
+            <div class="health-section">
+              <div class="health-section-header">
+                <i data-lucide="activity"></i>
+                SYSTEM HEALTH
+              </div>
+              <div class="health-grid">
+                <div class="health-item">
+                  <span class="label">API LATENCY</span>
+                  <span class="value text-green" id="health-latency">—</span>
+                </div>
+                <div class="health-item">
+                  <span class="label">INGESTION RATE</span>
+                  <span class="value text-blue" id="health-ingestion">—</span>
+                </div>
+                <div class="health-item">
+                  <span class="label">PHYSICS ENGINE</span>
+                  <span class="value text-amber" id="health-physics">—</span>
+                </div>
+                <div class="health-item">
+                  <span class="label">LAST SNAPSHOT</span>
+                  <span class="value" id="health-snapshot">—</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Mission Alerts Feed -->
+        <div id="alerts-panel" class="panel glass-panel">
+          <div class="panel-content">
+            <div class="panel-title panel-title-alerts">
+              <span class="panel-title-left">
+                <i data-lucide="bell"></i>
+                MISSION ALERTS
+              </span>
+              <span id="alert-count-badge" class="alert-count-badge">0</span>
+            </div>
+            <div id="alert-list"></div>
+          </div>
+        </div>
+
+      </div><!-- /lower-row -->
+
+    </main><!-- /main-content -->
+
+  </div><!-- /app -->
+
+  <!-- Context Menu -->
+  <div id="context-menu">
+    <div class="context-menu-item" data-action="schedule-maneuver">
+      <i data-lucide="rocket"></i> Schedule Maneuver
+    </div>
+    <div class="context-menu-item" data-action="view-telemetry">
+      <i data-lucide="radio"></i> View Telemetry
+    </div>
+    <div class="context-menu-item" data-action="open-drawer">
+      <i data-lucide="info"></i> Satellite Details
+    </div>
+    <div class="context-menu-item" data-action="track-camera">
+      <i data-lucide="video"></i> Track Camera
+    </div>
+  </div>
+
+  <!-- JS modules — order matters for globals -->
+  <script src="js/state.js?v=5"></script>
+  <script src="js/api.js?v=5"></script>
+  <script src="js/globe.js?v=5"></script>
+  <script src="js/bullseye.js?v=5"></script>
+  <script src="js/fuel.js?v=5"></script>
+  <script src="js/gantt.js?v=5"></script>
+  <script src="js/telemetry.js?v=5"></script>
+  <script src="js/alerts.js?v=5"></script>
+  <script src="js/speedControl.js?v=5"></script>
+  <script src="js/drawer.js?v=5"></script>
+  <script src="js/main.js?v=5"></script>
+</body>
+</html>
