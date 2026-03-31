@@ -43,6 +43,13 @@ PYBIND11_MODULE(autocm_engine, m) {
         .def_readwrite("miss_distance_km", &CDMWarning::miss_distance_km)
         .def_readwrite("relative_velocity", &CDMWarning::relative_velocity);
     
+    // ConjunctionCandidate
+    py::class_<ConjunctionCandidate>(m, "ConjunctionCandidate")
+        .def(py::init<>())
+        .def_readwrite("debris_id", &ConjunctionCandidate::debris_id)
+        .def_readwrite("distance_km", &ConjunctionCandidate::distance_km)
+        .def_readwrite("tca_seconds", &ConjunctionCandidate::tca_seconds);
+    
     // ManeuverPlan
     py::class_<ManeuverPlan>(m, "ManeuverPlan")
         .def(py::init<>())
@@ -52,4 +59,8 @@ PYBIND11_MODULE(autocm_engine, m) {
         .def_readwrite("dv_eci_kms", &ManeuverPlan::dv_eci_kms)
         .def_readwrite("estimated_fuel_kg", &ManeuverPlan::estimated_fuel_kg)
         .def_readwrite("is_recovery", &ManeuverPlan::is_recovery);
+    
+    // Free functions
+    m.def("propagate", &propagate);
+    m.def("run_conjunction_assessment", &run_conjunction_assessment);
 }

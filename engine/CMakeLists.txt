@@ -34,5 +34,10 @@ enable_testing()
 add_executable(test_propagator tests/test_propagator.cpp propagator.cpp)
 target_link_libraries(test_propagator PRIVATE)
 
-# Add test
+# Create performance test executable
+add_executable(test_conjunction_performance tests/test_conjunction_performance.cpp propagator.cpp conjunction.cpp)
+target_link_libraries(test_conjunction_performance PRIVATE)
+
+# Add tests
 add_test(NAME propagator_tests COMMAND test_propagator)
+add_test(NAME conjunction_performance_test COMMAND test_conjunction_performance)
