@@ -39,8 +39,12 @@ def _load_engine():
     current_dir = os.path.dirname(os.path.abspath(__file__))
     root_dir = os.path.dirname(current_dir)
 
-    # 1. Try autocm_engine.so in root/core/
+    # 1. Try autocm_engine.so in root/core/ or root/engine/build/
     core_path = os.path.join(root_dir, 'core')
+    engine_build_path = os.path.join(root_dir, 'engine', 'build')
+    
+    if engine_build_path not in sys.path:
+        sys.path.insert(0, engine_build_path)
     if core_path not in sys.path:
         sys.path.insert(0, core_path)
 
@@ -48,7 +52,8 @@ def _load_engine():
         import autocm_engine
         _engine = autocm_engine
         _ENGINE_TYPE = 'cpp'
-        print(f"[EngineWrapper] ✓ autocm_engine loaded from {core_path}")
+        loaded_path = getattr(autocm_engine, '__file__', 'unknown path')
+        print(f"[EngineWrapper] ✓ autocm_engine loaded from {loaded_path}")
         return
     except ImportError:
         pass
@@ -64,7 +69,7 @@ def _load_engine():
         _ENGINE_TYPE = 'mock'
         print(f"[EngineWrapper] ⚠ C++ engine not found — using Python mock from {mock_path}")
     except ImportError:
-        print(f"[EngineWrapper] ✗ No engine or mock found. Searched {core_path} and {mock_path}")
+        print(f"[EngineWrapper] ✗ No engine or mock found. Searched {engine_build_path}, {core_path} and {mock_path}")
 
 _load_engine()
 
