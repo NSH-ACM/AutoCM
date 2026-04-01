@@ -186,16 +186,18 @@ async def get_snapshot():
     Returns timestamp, satellites array (id, lat, lon, fuel_kg, status)
     Returns debris_cloud as flattened tuples [ID, lat, lon, alt]
     Payload must be compact (tuple format for debris, not full JSON)
+    Uses official debris IDs from catalog (Section 6.3)
     """
     try:
-        snapshot = state.autonomy_engine.get_snapshot()
-        
+        snapshot = state.get_snapshot()
+
         # Convert debris to flattened tuples as required
+        # Use official debris IDs from catalog, not generated DEB-XXXXX
         debris_cloud = []
-        for i, debris in enumerate(snapshot["debris_cloud"]):
-            # Format: [ID, lat, lon, alt] - using index as ID for debris
-            debris_cloud.append([f"DEB-{i:05d}", debris[0], debris[1], debris[2]])
-        
+        for deb in state.debris:
+            # Format: [ID, lat, lon, alt] - using official catalog ID
+            debris_cloud.append([deb.id, deb.lat, deb.lon, deb.alt_km])
+
         return {
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "satellites": snapshot["satellites"],

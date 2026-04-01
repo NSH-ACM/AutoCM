@@ -586,11 +586,62 @@ class StateManager:
             sat_id,
         )
 
+        # Record burn time for cooldown tracking
+        self.record_burn(sat_id, self.sim_time)
+
+        # Schedule recovery burn to return to nominal slot (Section 4.2 Objective 2)
+        self._schedule_recovery_burn(sat_id, delta_v)
+
         return {
             "status": "OK",
             "maneuver": maneuver.to_dict(),
             "fuel_remaining": round(sat.fuel_kg, 3),
         }
+
+    def _schedule_recovery_burn(self, sat_id: str, evasion_dv: dict):
+        """Schedule Hohmann-style recovery burn after evasion (Section 4.2)."""
+        COOLDOWN_SECONDS = 600  # 10-minute cooldown
+
+        sat = self.satellites.get(sat_id)
+        if not sat or sat_id not in self.nominal_slots:
+            return
+
+        # Calculate reverse delta-v (scaled for efficiency)
+        recovery_dv = {
+            "x": -evasion_dv.get("x", 0) * 0.95,
+            "y": -evasion_dv.get("y", 0) * 0.95,
+            "z": -evasion_dv.get("z", 0) * 0.95,
+        }
+
+        # Schedule after cooldown
+        recovery_time = self.sim_time + timedelta(seconds=COOLDOWN_SECONDS)
+
+        # Validate recovery burn
+        validation = self.validate_maneuver(sat_id, recovery_time, recovery_dv, check_cooldown=False)
+        if not validation["valid"]:
+            print(f"[StateManager] Recovery burn for {sat_id} failed validation: {validation['errors']}")
+            return
+
+        # Create recovery maneuver record
+        recovery_maneuver = ManeuverRecord(
+            satelliteId=sat_id,
+            burnId=f"RECOV-{sat_id}-{int(time.time())}",
+            burnTime=recovery_time.isoformat(),
+            duration=300.0,
+            type="RECOVERY_BURN",
+            deltaV=recovery_dv,
+            status="PENDING",
+            fuelCost=round(validation["fuel_cost_kg"], 4),
+        )
+        self.maneuvers.append(recovery_maneuver)
+
+        self._add_alert(
+            "RECOVERY",
+            "INFO",
+            f"Recovery burn scheduled for {sat_id} at {recovery_time.isoformat()} "
+            f"to return to nominal slot",
+            sat_id,
+        )
 
     # ── EOL Management (Section 5.3) ────────────────────────────────────────
 
