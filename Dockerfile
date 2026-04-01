@@ -44,6 +44,13 @@ COPY --from=cpp-builder /build/engine/build/ ./engine/build/
 COPY api/ ./api/
 COPY data/ ./data/
 COPY frontend/ ./frontend/
+COPY core/ ./core/
+
+# Ensure host-OS engine binaries (like .pyd or .so built on Windows/Mac) aren't mixed in
+RUN rm -f ./core/autocm_engine*.so ./core/autocm_engine*.pyd
+
+# Inject fresh Linux engine artifact from builder stage into core namespace
+RUN find ./engine/build/ -name "autocm_engine*.so" -exec cp {} ./core/autocm_engine.so \; || true
 
 EXPOSE 8000
 
