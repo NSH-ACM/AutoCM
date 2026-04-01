@@ -87,6 +87,7 @@ class PhysicsEngine:
     def __init__(self):
         self._call_count = 0
         self._total_ms = 0.0
+        self._engine_supports_epoch = True
 
     @property
     def engine_type(self) -> str:
@@ -169,12 +170,16 @@ class PhysicsEngine:
         if epoch_iso is None:
             epoch_iso = datetime.now(timezone.utc).isoformat()
 
-        try:
-            raw_cdms = self._track(
-                _engine.detect_conjunctions,
-                satellites, debris, lookahead_seconds, epoch_iso
-            )
-        except TypeError:
+        if self._engine_supports_epoch:
+            try:
+                raw_cdms = self._track(
+                    _engine.detect_conjunctions,
+                    satellites, debris, lookahead_seconds, epoch_iso
+                )
+            except TypeError:
+                self._engine_supports_epoch = False
+                
+        if not self._engine_supports_epoch:
             # Fallback for engines that don't accept epoch_iso
             raw_cdms = self._track(
                 _engine.detect_conjunctions,
