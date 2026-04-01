@@ -133,7 +133,8 @@ std::vector<CDMWarning> run_conjunction_assessment(
     const std::vector<OrbitalObject>& satellites,
     const std::vector<OrbitalObject>& debris,
     double lookahead_seconds,
-    double dt_step) {
+    double dt_step,
+    double distance_threshold_km) {
     
     std::vector<CDMWarning> warnings;
     warnings.reserve(50);  // Typical number of warnings
@@ -189,7 +190,17 @@ std::vector<CDMWarning> run_conjunction_assessment(
                 double dr_dot_dv = dr.x*dv.x + dr.y*dv.y + dr.z*dv.z;
                 double dv_sq = dv.x*dv.x + dv.y*dv.y + dv.z*dv.z;
                 
-                if (dv_sq < 1e-10) continue;  // Nearly parallel velocities
+                sat_state = sat_next;
+                deb_state = deb_next;
+            }
+            
+            // Check if this is a conjunction (< threshold)
+            if (min_distance < distance_threshold_km) {
+                CDMWarning warning;
+                warning.satellite_id = sat.id;
+                warning.debris_id = candidate.debris_id;
+                warning.tca_seconds_from_now = tca;
+                warning.miss_distance_km = min_distance;
                 
                 double tca = -dr_dot_dv / dv_sq;
                 

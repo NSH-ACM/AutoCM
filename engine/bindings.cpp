@@ -74,7 +74,11 @@ PYBIND11_MODULE(autocm_engine, m) {
     
     // Free functions
     m.def("propagate", &propagate);
-    m.def("run_conjunction_assessment", &run_conjunction_assessment);
+    m.def("run_conjunction_assessment", &run_conjunction_assessment,
+          py::arg("satellites"), py::arg("debris"),
+          py::arg("lookahead_seconds") = 86400.0,
+          py::arg("dt_step") = 30.0,
+          py::arg("distance_threshold_km") = 5.0);
     m.def("plan_evasion", &plan_evasion);
     m.def("plan_recovery", &plan_recovery);
     m.def("apply_burn", [](OrbitalObject& sat, Vec3 dv_eci_kms, double current_time) {
