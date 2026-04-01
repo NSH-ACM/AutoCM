@@ -53,4 +53,5 @@ std::vector<CDMWarning> run_conjunction_assessment(
     const std::vector<OrbitalObject>& satellites,
     const std::vector<OrbitalObject>& debris,
     double lookahead_seconds = 86400.0,
-    double dt_step = 30.0);
+    double dt_step = 30.0,
+    double distance_threshold_km = 5.0);

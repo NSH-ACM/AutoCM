@@ -93,7 +93,8 @@ std::vector<CDMWarning> run_conjunction_assessment(
     const std::vector<OrbitalObject>& satellites,
     const std::vector<OrbitalObject>& debris,
     double lookahead_seconds,
-    double dt_step) {
+    double dt_step,
+    double distance_threshold_km) {
     
     std::vector<CDMWarning> warnings;
     
@@ -159,8 +160,8 @@ std::vector<CDMWarning> run_conjunction_assessment(
                 deb_state = deb_next;
             }
             
-            // Check if this is a conjunction (< 100 m)
-            if (min_distance < 0.100) {  // 100 meters
+            // Check if this is a conjunction (< threshold)
+            if (min_distance < distance_threshold_km) {
                 CDMWarning warning;
                 warning.satellite_id = sat.id;
                 warning.debris_id = candidate.debris_id;
