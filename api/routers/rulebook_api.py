@@ -194,7 +194,7 @@ async def get_snapshot():
         # Convert debris to flattened tuples as required
         # Use official debris IDs from catalog, not generated DEB-XXXXX
         debris_cloud = []
-        for deb in state.debris:
+        for deb in state.debris.values():
             # Format: [ID, lat, lon, alt] - using official catalog ID
             debris_cloud.append([deb.id, deb.lat, deb.lon, deb.alt_km])
 

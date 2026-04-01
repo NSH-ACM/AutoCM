@@ -23,6 +23,7 @@ from .state_manager import state
 from .routers.telemetry import router as telemetry_router
 from .routers.maneuvers import router as maneuvers_router
 from .routers.rulebook_api import router as rulebook_router
+from .routers.auth import router as auth_router
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -88,6 +89,7 @@ app.add_middleware(
 app.include_router(telemetry_router, prefix="/api")
 app.include_router(maneuvers_router, prefix="/api")
 app.include_router(rulebook_router)  # Rulebook compliant endpoints
+app.include_router(auth_router)
 
 
 # ═══════════════════════════════════════════════════════════════════════════

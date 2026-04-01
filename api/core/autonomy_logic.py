@@ -123,18 +123,15 @@ class AutonomyManager:
                     processed_count += 1
             elif obj_type == 'DEBRIS':
                 # Update or add debris
-                found = False
-                for deb in self.state.debris:
-                    if deb.id == obj_id:
-                        r = state_data.get('r', {'x':0,'y':0,'z':0})
-                        deb.lat, deb.lon, deb.alt_km = self.state._eci_to_latlon(r)
-                        found = True
-                        break
-                if not found:
+                if obj_id in self.state.debris:
+                    deb = self.state.debris[obj_id]
+                    r = state_data.get('r', {'x':0,'y':0,'z':0})
+                    deb.lat, deb.lon, deb.alt_km = self.state._eci_to_latlon(r)
+                else:
                     r = state_data.get('r', {'x':0,'y':0,'z':0})
                     lat, lon, alt = self.state._eci_to_latlon(r)
                     from ..state_manager import DebrisObject
-                    self.state.debris.append(DebrisObject(id=obj_id, lat=lat, lon=lon, alt_km=alt))
+                    self.state.debris[obj_id] = DebrisObject(id=obj_id, lat=lat, lon=lon, alt_km=alt)
                 processed_count += 1
 
         # Run conjunction detection after ingestion

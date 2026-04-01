@@ -113,7 +113,7 @@ class StateManager:
 
     def __init__(self):
         self.satellites: Dict[str, SatelliteState] = {}
-        self.debris: List[DebrisObject] = []
+        self.debris: Dict[str, DebrisObject] = {}
         self.ground_stations: List[Dict] = []
         self.cdms: List[CDMRecord] = []
         self.maneuvers: List[ManeuverRecord] = []
@@ -175,12 +175,13 @@ class StateManager:
 
             # Load debris
             for deb_data in catalog.get("debris", []):
-                self.debris.append(DebrisObject(
-                    id=deb_data[0] if isinstance(deb_data, list) else deb_data["id"],
+                deb_id = deb_data[0] if isinstance(deb_data, list) else deb_data["id"]
+                self.debris[deb_id] = DebrisObject(
+                    id=deb_id,
                     lat=deb_data[1] if isinstance(deb_data, list) else deb_data["lat"],
                     lon=deb_data[2] if isinstance(deb_data, list) else deb_data["lon"],
                     alt_km=deb_data[3] if isinstance(deb_data, list) else deb_data.get("alt_km", 450.0),
-                ))
+                )
 
             self._initialized = True
             print(f"[StateManager] Loaded {len(self.satellites)} satellites, "
@@ -227,12 +228,13 @@ class StateManager:
         # Generate debris
         rng = random.Random(0xDEADBEEF)
         for i in range(5000):
-            self.debris.append(DebrisObject(
-                id=f"DEB-{str(i).zfill(5)}",
+            deb_id = f"DEB-{str(i).zfill(5)}"
+            self.debris[deb_id] = DebrisObject(
+                id=deb_id,
                 lat=round((rng.random() - 0.5) * 170, 3),
                 lon=round((rng.random() - 0.5) * 360, 3),
                 alt_km=round(380 + rng.random() * 270, 1),
-            ))
+            )
 
         self._initialized = True
         print(f"[StateManager] Generated {len(self.satellites)} satellites, "
@@ -374,7 +376,7 @@ class StateManager:
 
         # Prepare and propagate debris
         debris_objects = []
-        for deb in self.debris:
+        for deb in self.debris.values():
             deb_r = self._latlon_to_eci(deb.lat, deb.lon, deb.alt_km)
             # Estimate debris velocity (rough approximation)
             deb_v = self._compute_orbital_velocity(deb_r, deb.lat)
@@ -387,18 +389,17 @@ class StateManager:
         if debris_objects:
             try:
                 updated_debris = physics_engine.propagate(debris_objects, dt_seconds)
-                deb_dict = {d.id: d for d in self.debris}
                 for updated in updated_debris:
                     deb_id = updated["id"]
-                    if deb_id in deb_dict:
-                        deb = deb_dict[deb_id]
+                    if deb_id in self.debris:
+                        deb = self.debris[deb_id]
                         lat, lon, alt = self._eci_to_latlon(updated["r"])
                         deb.lat = lat
                         deb.lon = lon
                         deb.alt_km = alt
             except Exception as e:
                 # Fallback: simple longitude drift
-                for deb in self.debris:
+                for deb in self.debris.values():
                     deb.lon = round(((deb.lon + 0.04 + 180) % 360) - 180, 3)
 
         # Check for EOL satellites (< 5% fuel) and trigger graveyard
@@ -446,7 +447,7 @@ class StateManager:
 
         # Prepare debris for physics engine
         debris_objects = []
-        for deb in self.debris:
+        for deb in self.debris.values():
             deb_r = self._latlon_to_eci(deb.lat, deb.lon, deb.alt_km)
             deb_v = self._compute_orbital_velocity(deb_r, deb.lat)
             debris_objects.append({
@@ -503,13 +504,15 @@ class StateManager:
         """Fallback simple miss-distance calculation for CDMs."""
         rng = random.Random(int(self.sim_time.timestamp()) % 100000)
         sat_list = list(self.satellites.values())
+        debris_list = list(self.debris.values())
         for sat in sat_list:
             if sat.status == "EOL":
                 continue
             num_threats = 1 if sat.status == "EVADING" else (1 if rng.random() < 0.12 else 0)
-            for _ in range(num_threats):
-                deb_idx = rng.randint(0, len(self.debris) - 1)
-                deb = self.debris[deb_idx]
+            if num_threats > 0 and debris_list:
+                for _ in range(num_threats):
+                    deb_idx = rng.randint(0, len(debris_list) - 1)
+                    deb = debris_list[deb_idx]
                 if rng.random() < 0.25:
                     miss_km = rng.random() * 0.1
                 elif rng.random() < 0.5:
@@ -735,19 +738,34 @@ class StateManager:
                     sat_id,
                 )
 
-                # Schedule graveyard maneuver
-                maneuver = ManeuverRecord(
+                # Schedule graveyard maneuver (Hohmann 2-burn)
+                t1 = self.sim_time
+                t2 = t1 + timedelta(seconds=2700) # Half orbit
+
+                burn1 = ManeuverRecord(
                     satelliteId=sat_id,
-                    burnId=f"EOL-{sat_id}-{int(time.time())}",
-                    burnTime=self.sim_time.isoformat(),
-                    duration=300.0,
-                    type="EOL_GRAVEYARD",
-                    deltaV={"x": dv_graveyard, "y": 0, "z": 0},
+                    burnId=f"EOL1-{sat_id}-{int(t1.timestamp())}",
+                    burnTime=t1.isoformat(),
+                    duration=60.0,
+                    type="GRAVEYARD_APOGEE_RAISE",
+                    deltaV={"x": dv_graveyard / 2, "y": 0, "z": 0},
                     status="PENDING",
-                    fuelCost=round(sat.fuel_kg * 0.5, 3),  # Use remaining fuel
+                    fuelCost=round(sat.fuel_kg * 0.4, 3),
                 )
-                self.maneuvers.append(maneuver)
-                sat.alt_km += GRAVEYARD_DELTA_KM
+                
+                burn2 = ManeuverRecord(
+                    satelliteId=sat_id,
+                    burnId=f"EOL2-{sat_id}-{int(t2.timestamp())}",
+                    burnTime=t2.isoformat(),
+                    duration=60.0,
+                    type="GRAVEYARD_CIRCULARIZATION",
+                    deltaV={"x": dv_graveyard / 2, "y": 0, "z": 0},
+                    status="PENDING",
+                    fuelCost=round(sat.fuel_kg * 0.5, 3),
+                )
+
+                self.maneuvers.extend([burn1, burn2])
+                sat.alt_km += GRAVEYARD_DELTA_KM  # Simulated result
 
     # ── Station-Keeping Box Monitoring (Section 5.2) ──────────────────────
 
@@ -949,7 +967,7 @@ class StateManager:
         return {
             "timestamp": self.sim_time.isoformat(),
             "satellites": [s.to_dict() for s in self.satellites.values()],
-            "debris_cloud": [d.to_tuple() for d in self.debris],
+            "debris_cloud": [d.to_tuple() for d in self.debris.values()],
             "cdms": [c.to_dict() for c in self.cdms],
             "maneuvers": [m.to_dict() for m in self.maneuvers],
         }
@@ -988,6 +1006,7 @@ class StateManager:
             },
             "debris_tracked": len(self.debris),
             "sim_time": self.sim_time.isoformat(),
+            "engine": physics_engine.get_stats(),
         }
 
     def get_alerts_since(self, after_id: int) -> List[dict]:

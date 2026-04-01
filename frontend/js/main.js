@@ -246,6 +246,17 @@
       if (alertEl && stats.conjunctions) {
         animateStat('stat-alerts', stats.conjunctions.total_raised);
       }
+
+      if (stats.engine) {
+        const engineEl = document.getElementById('health-physics');
+        if (engineEl) {
+           engineEl.textContent = stats.engine.engine_type === 'cpp' ? 'CPP_O3' : 'MOCK_PY';
+           engineEl.className = stats.engine.engine_type === 'cpp' ? 'value text-green' : 'value text-amber';
+        }
+
+        const ingestionEl = document.getElementById('health-ingestion');
+        if (ingestionEl) ingestionEl.textContent = (stats.engine.wrapper_avg_ms || 0).toFixed(1) + ' ms/cyc';
+      }
     } catch (e) {
       console.warn('[Stats] Failed to poll constellation stats:', e.message);
     }
@@ -295,9 +306,7 @@
       Telemetry.updateCDMList(cdmCache, simTimestamp);
     }
 
-    // Inject Engine Status
-    const engineEl = document.getElementById('health-physics');
-    if (engineEl) engineEl.textContent = API.isDemo() ? 'MOCK_PY' : 'CPP_O3';
+    // Engine status is now updated during pollConstellationStats
 
     // Update critical CDM count organically
     const criticalCount = cdmCache.filter(c => c.missDistance < 0.1).length;

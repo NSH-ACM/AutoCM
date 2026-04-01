@@ -165,8 +165,7 @@ const Telemetry = (() => {
     }
 
     if (ingestionEl) {
-      const rate = API.isDemo() ? '~demo' : '10K obj/s';
-      ingestionEl.textContent = rate;
+      // Ingestion string is now handled by pollConstellationStats in main.js
     }
 
     if (snapshotEl && timestamp) {
