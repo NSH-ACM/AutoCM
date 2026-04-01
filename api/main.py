@@ -310,3 +310,8 @@ if os.path.isdir(_frontend_dir):
     async def serve_dashboard():
         """Serve the main dashboard HTML."""
         return FileResponse(os.path.join(_frontend_dir, "index.html"))
+
+    @app.get("/dashboard.html")
+    async def serve_minimal_dashboard():
+        """Serve the minimal dashboard HTML."""
+        return FileResponse(os.path.join(_frontend_dir, "dashboard.html"))
