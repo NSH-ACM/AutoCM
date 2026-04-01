@@ -279,6 +279,64 @@ class StateManager:
         vz = 0.0
         return {"x": round(vx, 6), "y": round(vy, 6), "z": round(vz, 6)}
 
+    @staticmethod
+    def _rtn_to_eci(r: dict, v: dict, dv_rtn: dict) -> dict:
+        """
+        Convert delta-V from RTN (Radial-Transverse-Normal) frame to ECI.
+        
+        RTN frame:
+        - R (Radial): along position vector (away from Earth)
+        - T (Transverse): along velocity vector (direction of motion)
+        - N (Normal): cross product of R × T (perpendicular to orbital plane)
+        
+        Args:
+            r: Position vector in ECI (km)
+            v: Velocity vector in ECI (km/s)
+            dv_rtn: Delta-V in RTN frame {radial, transverse, normal} (km/s)
+        
+        Returns:
+            Delta-V in ECI frame {x, y, z} (km/s)
+        """
+        # Compute unit vectors for RTN frame
+        r_mag = math.sqrt(r["x"]**2 + r["y"]**2 + r["z"]**2)
+        v_mag = math.sqrt(v["x"]**2 + v["y"]**2 + v["z"]**2)
+        
+        if r_mag < 1e-10 or v_mag < 1e-10:
+            return {"x": 0.0, "y": 0.0, "z": 0.0}
+        
+        # R_hat = r / |r| (Radial unit vector)
+        r_hat = {
+            "x": r["x"] / r_mag,
+            "y": r["y"] / r_mag,
+            "z": r["z"] / r_mag
+        }
+        
+        # T_hat = v / |v| (Transverse unit vector, approximately along-track)
+        t_hat = {
+            "x": v["x"] / v_mag,
+            "y": v["y"] / v_mag,
+            "z": v["z"] / v_mag
+        }
+        
+        # N_hat = R × T (Normal unit vector, perpendicular to orbital plane)
+        n_hat = {
+            "x": r_hat["y"] * t_hat["z"] - r_hat["z"] * t_hat["y"],
+            "y": r_hat["z"] * t_hat["x"] - r_hat["x"] * t_hat["z"],
+            "z": r_hat["x"] * t_hat["y"] - r_hat["y"] * t_hat["x"]
+        }
+        n_mag = math.sqrt(n_hat["x"]**2 + n_hat["y"]**2 + n_hat["z"]**2)
+        if n_mag > 1e-10:
+            n_hat = {k: v / n_mag for k, v in n_hat.items()}
+        
+        # Transform RTN to ECI: dV_eci = dV_r * R_hat + dV_t * T_hat + dV_n * N_hat
+        dv_eci = {
+            "x": dv_rtn["radial"] * r_hat["x"] + dv_rtn["transverse"] * t_hat["x"] + dv_rtn["normal"] * n_hat["x"],
+            "y": dv_rtn["radial"] * r_hat["y"] + dv_rtn["transverse"] * t_hat["y"] + dv_rtn["normal"] * n_hat["y"],
+            "z": dv_rtn["radial"] * r_hat["z"] + dv_rtn["transverse"] * t_hat["z"] + dv_rtn["normal"] * n_hat["z"]
+        }
+        
+        return dv_eci
+
     # ── Simulation Step ───────────────────────────────────────────────────
 
     def simulate_step(self, dt_seconds: float = 60.0):

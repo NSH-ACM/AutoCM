@@ -128,9 +128,9 @@ async def get_alerts(after: int = 0):
 
 # ── Simulation Control ────────────────────────────────────────────────────
 
-@app.post("/api/simulate/step")
-async def simulate_step(body: dict = None):
-    """Advance simulation by one step."""
+@app.post("/api/simulation/step")
+async def simulation_step(body: dict = None):
+    """Advance simulation by one step (Section 4 endpoint)."""
     step_seconds = 60
     if body and "step_seconds" in body:
         step_seconds = body["step_seconds"]
@@ -140,9 +140,9 @@ async def simulate_step(body: dict = None):
     return result
 
 
-@app.post("/api/simulate/run")
-async def start_simulation(body: dict = None):
-    """Start continuous simulation."""
+@app.post("/api/simulation/run")
+async def simulation_run(body: dict = None):
+    """Start continuous simulation (Section 4 endpoint)."""
     if body:
         state.step_seconds = body.get("step_seconds", 60)
         state.real_interval_ms = body.get("real_interval_ms", 1000)
@@ -150,22 +150,47 @@ async def start_simulation(body: dict = None):
     return {"status": "OK", "running": True}
 
 
-@app.post("/api/simulate/stop")
-async def stop_simulation():
-    """Stop continuous simulation."""
+@app.post("/api/simulation/stop")
+async def simulation_stop():
+    """Stop continuous simulation (Section 4 endpoint)."""
     state.sim_running = False
     return {"status": "OK", "running": False}
 
 
-@app.get("/api/simulate/status")
-async def simulation_status():
-    """Get simulation status."""
+@app.get("/api/simulation/status")
+async def simulation_get_status():
+    """Get simulation status (Section 4 endpoint)."""
     return {
         "running": state.sim_running,
         "sim_time": state.sim_time.isoformat(),
         "step_seconds": state.step_seconds,
         "real_interval_ms": state.real_interval_ms,
     }
+
+
+# Legacy endpoint aliases for backward compatibility
+@app.post("/api/simulate/step")
+async def simulate_step_legacy(body: dict = None):
+    """Legacy endpoint - redirects to /api/simulation/step"""
+    return await simulation_step(body)
+
+
+@app.post("/api/simulate/run")
+async def start_simulation_legacy(body: dict = None):
+    """Legacy endpoint - redirects to /api/simulation/run"""
+    return await simulation_run(body)
+
+
+@app.post("/api/simulate/stop")
+async def stop_simulation_legacy():
+    """Legacy endpoint - redirects to /api/simulation/stop"""
+    return await simulation_stop()
+
+
+@app.get("/api/simulate/status")
+async def simulation_status_legacy():
+    """Legacy endpoint - redirects to /api/simulation/status"""
+    return await simulation_get_status()
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -216,9 +241,21 @@ async def websocket_telemetry(websocket: WebSocket):
 
 
 async def _handle_ws_message(websocket: WebSocket, msg: dict):
-    """Handle incoming WebSocket commands from clients."""
+    """Handle incoming WebSocket commands from clients with 10s signal delay."""
     msg_type = msg.get("type", "")
-
+    command_timestamp = msg.get("timestamp")
+    
+    # Enforce 10-second signal delay (Section 4.2)
+    current_time = time.time()
+    if command_timestamp:
+        time_diff = current_time - command_timestamp
+        if time_diff < 10.0:
+            await websocket.send_json({
+                "type": "error",
+                "message": f"Command violates 10s signal delay. Received after {time_diff:.2f}s, need 10s minimum."
+            })
+            return
+    
     if msg_type == "simulate_step":
         dt = msg.get("step_seconds", 60)
         state.simulate_step(dt)

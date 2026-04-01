@@ -23,11 +23,15 @@ struct KDNode {
     Vec3 point;
     std::string id;
     int axis;
+    Vec3 bbox_min;  // Bounding box for spatial pruning
+    Vec3 bbox_max;
     std::shared_ptr<KDNode> left;
     std::shared_ptr<KDNode> right;
     
     KDNode(const Vec3& p, const std::string& i, int a) 
-        : point(p), id(i), axis(a), left(nullptr), right(nullptr) {}
+        : point(p), id(i), axis(a), 
+          bbox_min(p), bbox_max(p),  // Initialize bbox to point
+          left(nullptr), right(nullptr) {}
 };
 
 class KDTree {
