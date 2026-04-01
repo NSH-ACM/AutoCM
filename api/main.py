@@ -286,7 +286,8 @@ async def _websocket_broadcast_loop():
                 for ws in dead_clients:
                     state.unregister_ws(ws)
 
-            await asyncio.sleep(2.0)  # Broadcast every 2 seconds
+            # Synchronize broadcast rate closely with the simulation tick, down to ~10ms hardware limit
+            await asyncio.sleep(max(state.real_interval_ms / 1000.0, 0.01))
         except asyncio.CancelledError:
             break
         except Exception as e:
