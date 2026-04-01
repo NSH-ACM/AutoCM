@@ -1,0 +1,6 @@
+/home/Code1/dev/temp/AutoCM/engine/build/CMakeFiles/autocm_engine.dir
+/home/Code1/dev/temp/AutoCM/engine/build/CMakeFiles/test_propagator.dir
+/home/Code1/dev/temp/AutoCM/engine/build/CMakeFiles/test_conjunction_performance.dir
+/home/Code1/dev/temp/AutoCM/engine/build/CMakeFiles/test.dir
+/home/Code1/dev/temp/AutoCM/engine/build/CMakeFiles/edit_cache.dir
+/home/Code1/dev/temp/AutoCM/engine/build/CMakeFiles/rebuild_cache.dir

@@ -564,3 +564,45 @@ events:
       Running the CXX compiler's linker: "/usr/bin/ld" "-v"
       GNU ld (GNU Binutils for Debian) 2.44
 ...
+
+---
+events:
+  -
+    kind: "try_compile-v1"
+    backtrace:
+      - "/usr/share/cmake-3.31/Modules/Internal/CheckSourceCompiles.cmake:108 (try_compile)"
+      - "/usr/share/cmake-3.31/Modules/Internal/CheckCompilerFlag.cmake:18 (cmake_check_source_compiles)"
+      - "/usr/share/cmake-3.31/Modules/CheckCXXCompilerFlag.cmake:55 (cmake_check_compiler_flag)"
+      - "/home/Code1/dev/temp/AutoCM/venv/lib/python3.13/site-packages/pybind11/share/cmake/pybind11/pybind11Common.cmake:332 (check_cxx_compiler_flag)"
+      - "/home/Code1/dev/temp/AutoCM/venv/lib/python3.13/site-packages/pybind11/share/cmake/pybind11/pybind11Common.cmake:377 (_pybind11_return_if_cxx_and_linker_flags_work)"
+      - "/home/Code1/dev/temp/AutoCM/venv/lib/python3.13/site-packages/pybind11/share/cmake/pybind11/pybind11Common.cmake:438 (_pybind11_generate_lto)"
+      - "/home/Code1/dev/temp/AutoCM/venv/lib/python3.13/site-packages/pybind11/share/cmake/pybind11/pybind11Config.cmake:257 (include)"
+      - "CMakeLists.txt:8 (find_package)"
+    checks:
+      - "Performing Test HAS_FLTO_AUTO"
+    directories:
+      source: "/home/Code1/dev/temp/AutoCM/engine/build/CMakeFiles/CMakeScratch/TryCompile-vV2Ozt"
+      binary: "/home/Code1/dev/temp/AutoCM/engine/build/CMakeFiles/CMakeScratch/TryCompile-vV2Ozt"
+    cmakeVariables:
+      CMAKE_CXX_FLAGS: ""
+      CMAKE_CXX_FLAGS_DEBUG: "-g"
+      CMAKE_EXE_LINKER_FLAGS: ""
+      CMAKE_MODULE_PATH: ""
+    buildResult:
+      variable: "HAS_FLTO_AUTO"
+      cached: true
+      stdout: |
+        Change Dir: '/home/Code1/dev/temp/AutoCM/engine/build/CMakeFiles/CMakeScratch/TryCompile-vV2Ozt'
+        
+        Run Build Command(s): /usr/bin/cmake -E env VERBOSE=1 /usr/bin/gmake -f Makefile cmTC_a80cb/fast
+        /usr/bin/gmake  -f CMakeFiles/cmTC_a80cb.dir/build.make CMakeFiles/cmTC_a80cb.dir/build
+        gmake[1]: Entering directory '/home/Code1/dev/temp/AutoCM/engine/build/CMakeFiles/CMakeScratch/TryCompile-vV2Ozt'
+        Building CXX object CMakeFiles/cmTC_a80cb.dir/src.cxx.o
+        /usr/bin/c++ -DHAS_FLTO_AUTO  -std=gnu++17   -flto=auto -fno-fat-lto-objects -o CMakeFiles/cmTC_a80cb.dir/src.cxx.o -c /home/Code1/dev/temp/AutoCM/engine/build/CMakeFiles/CMakeScratch/TryCompile-vV2Ozt/src.cxx
+        Linking CXX executable cmTC_a80cb
+        /usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_a80cb.dir/link.txt --verbose=1
+        /usr/bin/c++ CMakeFiles/cmTC_a80cb.dir/src.cxx.o -o cmTC_a80cb  -flto=auto
+        gmake[1]: Leaving directory '/home/Code1/dev/temp/AutoCM/engine/build/CMakeFiles/CMakeScratch/TryCompile-vV2Ozt'
+        
+      exitCode: 0
+...

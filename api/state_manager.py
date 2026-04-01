@@ -17,6 +17,7 @@ from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, field, asdict
 
 from .engine_wrapper import engine as physics_engine
+from .core.autonomy_logic import AutonomyManager
 
 # ═══════════════════════════════════════════════════════════════════════════
 #  Satellite & Debris State Models
@@ -131,6 +132,10 @@ class StateManager:
         self.last_burn_time: Dict[str, datetime] = {}  # sat_id -> last burn timestamp
         # EOL tracking
         self.eol_triggered: set = set()  # sat_ids that triggered EOL
+        
+        # Physics & Autonomy Engines
+        self.physics_engine = physics_engine
+        self.autonomy_engine = AutonomyManager(self)
 
     # ── Initialization ────────────────────────────────────────────────────
 

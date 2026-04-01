@@ -13,7 +13,7 @@ cd build
 
 # Configure with CMake
 echo "Configuring with CMake..."
-cmake .. -DCMAKE_BUILD_TYPE=Release
+cmake .. -DCMAKE_BUILD_TYPE=Release -Dpybind11_DIR=/home/Code1/dev/temp/AutoCM/venv/lib/python3.13/site-packages/pybind11/share/cmake/pybind11
 
 # Build the engine
 echo "Building..."
@@ -32,7 +32,7 @@ echo "Found extension: $EXTENSION_FILE"
 
 # Copy to core directory
 echo "Copying to core/ directory..."
-cp "$EXTENSION_FILE" ../../core/
+cp "$EXTENSION_FILE" "../../core/autocm_engine.so"
 
 echo "Build complete! Extension copied to core/autocm_engine.so"
 

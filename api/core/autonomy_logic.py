@@ -88,15 +88,96 @@ class AutonomyManager:
     recovery burns, and manages the satellite status state machine.
     """
 
-    def __init__(self, physics_engine=None):
+    def __init__(self, state_manager=None):
         """
         Args:
-            physics_engine: Optional PhysicsEngine instance from engine_wrapper.
-                           If None, maneuver planning is disabled.
+            state_manager: Instance of StateManager.
         """
-        self.engine = physics_engine
+        self.state = state_manager
+        self.engine = state_manager.physics_engine if state_manager else None
         self.action_log: List[Dict] = []
         self._cooldown_tracker: Dict[str, datetime] = {}
+
+    def ingest_telemetry(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Rulebook-compliant telemetry ingestion (Section 4.1).
+        Accepts: {objects: [{id, type, state: {t, r, v}}]}
+        Returns: {status, processed_count, active_cdm_warnings}
+        """
+        processed_count = 0
+        objects = payload.get('objects', [])
+        
+        for obj in objects:
+            obj_id = obj.get('id')
+            obj_type = obj.get('type')
+            state_data = obj.get('state', {})
+            
+            if obj_type == 'SATELLITE':
+                # Update satellite position/velocity
+                if obj_id in self.state.satellites:
+                    sat = self.state.satellites[obj_id]
+                    sat.r = state_data.get('r', sat.r)
+                    sat.v = state_data.get('v', sat.v)
+                    # Update lat/lon from ECI for dashboard consistency
+                    sat.lat, sat.lon, sat.alt_km = self.state._eci_to_latlon(sat.r)
+                    processed_count += 1
+            elif obj_type == 'DEBRIS':
+                # Update or add debris
+                found = False
+                for deb in self.state.debris:
+                    if deb.id == obj_id:
+                        r = state_data.get('r', {'x':0,'y':0,'z':0})
+                        deb.lat, deb.lon, deb.alt_km = self.state._eci_to_latlon(r)
+                        found = True
+                        break
+                if not found:
+                    r = state_data.get('r', {'x':0,'y':0,'z':0})
+                    lat, lon, alt = self.state._eci_to_latlon(r)
+                    from ..state_manager import DebrisObject
+                    self.state.debris.append(DebrisObject(id=obj_id, lat=lat, lon=lon, alt_km=alt))
+                processed_count += 1
+
+        # Run conjunction detection after ingestion
+        self.state.detect_conjunctions()
+        
+        return {
+            "status": "ACK",
+            "processed_count": processed_count,
+            "active_cdm_warnings": len(self.state.cdms)
+        }
+
+    def simulate_step(self, step_seconds: float) -> Dict[str, Any]:
+        """
+        Rulebook-compliant simulation step (Section 4.3).
+        Integrates physics and executes scheduled maneuvers.
+        """
+        initial_time = self.state.sim_time
+        target_time = initial_time + timedelta(seconds=step_seconds)
+        
+        collisions_detected = 0
+        maneuvers_executed = 0
+        
+        # Integrate physics for all objects using StateManager's simulate_step
+        self.state.simulate_step(step_seconds)
+        
+        # detect_conjunctions is called within propagate_all in most implementations
+        # or we call it here manually
+        self.state.detect_conjunctions()
+        
+        # Check for collisions (< 100m)
+        for cdm in self.state.cdms:
+            if cdm.missDistance < 0.1:
+                collisions_detected += 1
+        
+        # Autonomous Decision Making
+        self.process_cdms(self.state.cdms, self.state.satellites, self.state.sim_time)
+        
+        return {
+            "status": "STEP_COMPLETE",
+            "new_timestamp": self.state.sim_time.isoformat(),
+            "collisions_detected": collisions_detected,
+            "maneuvers_executed": maneuvers_executed
+        }
 
     # ── Main Entry Point ──────────────────────────────────────────────────
 

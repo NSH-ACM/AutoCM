@@ -14,14 +14,15 @@ AutoCM is a real-time, high-fidelity mission control orchestrator designed to au
 
 ## Quick Start (Docker)
 
-The fastest way to deploy the orchestration servers and mission control dashboard is via Docker. 
+The application is fully containerized and strictly adheres to the **National Space Hackathon 2026** deployment requirements.
 
 ```bash
 docker compose up --build
 ```
-*This command seamlessly builds the C++ physics core into a multi-staged Alpine/Ubuntu sequence, sets up the Python environment, spins up the socket connections, and statically serves the entire dashboard.*
+*This command compiles the C++ physics core (J2/RK4), initializes the FastAPI backend, and serves the "Orbital Insight" visualizer.*
 
-After the server spins up, navigate to `http://localhost:8001` to access Mission Control.
+After deployment, the API is accessible at `http://localhost:8000`.
+The Mission Control Dashboard is available at `http://localhost:8000/dashboard` (or per your frontend routing).
 
 ## Local Development (Without Docker)
 
@@ -49,6 +50,13 @@ Navigate your browser to `http://localhost:8001`.
 
 ## Documentation
 
-- **State Model Details:** Refer to `api/state_manager.py` for exact data contracts regarding satellite status and telemetry schemas.
-- **REST Endpoints:** The API provides Swagger OpenAPI definitions live at `http://localhost:8001/docs`. 
-- **Conjunction Strategy:** Consult `api/core/autonomy_logic.py` for the severity classification models triggering the autonomous evassion subroutines.
+Detailed technical documentation is available in the repository:
+- **[TECHNICAL_REPORT.md](TECHNICAL_REPORT.md)**: Deep dive into J2/RK4 numerical methods and KD-Tree spatial optimization.
+- **REST Endpoints**: Swagger OpenAPI definitions are available live at `http://localhost:8000/docs`.
+- **Conjunction Strategy**: See `api/autonomy_logic.py` for risk-assessment and decision models.
+
+## API Compliance (Section 4)
+- `POST /api/telemetry`: High-frequency state vector ingestion.
+- `POST /api/maneuver/schedule`: Autonomous burn sequence scheduling.
+- `POST /api/simulate/step`: High-fidelity physics integration "tick".
+- `GET /api/visualization/snapshot`: Optimized situational awareness data.

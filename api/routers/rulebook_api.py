@@ -201,7 +201,9 @@ async def get_snapshot():
         return {
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "satellites": snapshot["satellites"],
-            "debris_cloud": debris_cloud
+            "debris_cloud": debris_cloud,
+            "cdms": snapshot["cdms"],
+            "maneuvers": snapshot["maneuvers"]
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

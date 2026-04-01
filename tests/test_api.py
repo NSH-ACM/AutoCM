@@ -16,8 +16,11 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 from fastapi.testclient import TestClient
 from api.main import app
 
-
-client = TestClient(app)
+@pytest.fixture(scope="module")
+def client():
+    """Fixture to provide a TestClient that triggers lifespan events."""
+    with TestClient(app) as c:
+        yield c
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -27,7 +30,7 @@ client = TestClient(app)
 class TestHealthEndpoints:
     """Test health check and core API endpoints."""
 
-    def test_health_check(self):
+    def test_health_check(self, client):
         """GET /health returns 200 with status OK."""
         response = client.get("/health")
         assert response.status_code == 200
@@ -37,7 +40,7 @@ class TestHealthEndpoints:
         assert "satellites" in data
         assert "debris" in data
 
-    def test_snapshot(self):
+    def test_snapshot(self, client):
         """GET /api/visualization/snapshot returns full state."""
         response = client.get("/api/visualization/snapshot")
         assert response.status_code == 200
@@ -49,7 +52,7 @@ class TestHealthEndpoints:
         assert "maneuvers" in data
         assert len(data["satellites"]) > 0
 
-    def test_constellation_stats(self):
+    def test_constellation_stats(self, client):
         """GET /api/constellation/stats returns statistics."""
         response = client.get("/api/constellation/stats")
         assert response.status_code == 200
@@ -68,14 +71,14 @@ class TestHealthEndpoints:
 class TestTelemetryEndpoints:
     """Test telemetry ingestion and query endpoints."""
 
-    def test_get_constellation_telemetry(self):
+    def test_get_constellation_telemetry(self, client):
         """GET /api/telemetry/constellation returns stats."""
         response = client.get("/api/telemetry/constellation")
         assert response.status_code == 200
         data = response.json()
         assert data["satellites"]["total"] > 0
 
-    def test_get_satellite_telemetry(self):
+    def test_get_satellite_telemetry(self, client):
         """GET /api/telemetry/satellite/{id} returns satellite data."""
         # First get a valid sat ID
         snapshot = client.get("/api/visualization/snapshot").json()
@@ -88,12 +91,12 @@ class TestTelemetryEndpoints:
         assert "eci_position" in data
         assert "eci_velocity" in data
 
-    def test_get_satellite_not_found(self):
+    def test_get_satellite_not_found(self, client):
         """GET /api/telemetry/satellite/INVALID returns 404."""
         response = client.get("/api/telemetry/satellite/SAT-INVALID-99")
         assert response.status_code == 404
 
-    def test_ingest_telemetry(self):
+    def test_ingest_telemetry(self, client):
         """POST /api/telemetry/ingest updates satellite state."""
         snapshot = client.get("/api/visualization/snapshot").json()
         sat_id = snapshot["satellites"][0]["id"]
@@ -111,7 +114,7 @@ class TestTelemetryEndpoints:
         assert "lon" in data["updated_fields"]
         assert "fuel_kg" in data["updated_fields"]
 
-    def test_ingest_telemetry_invalid_satellite(self):
+    def test_ingest_telemetry_invalid_satellite(self, client):
         """POST /api/telemetry/ingest with invalid satellite returns 404."""
         response = client.post("/api/telemetry/ingest", json={
             "satellite_id": "SAT-NONEXISTENT-00",
@@ -119,7 +122,7 @@ class TestTelemetryEndpoints:
         })
         assert response.status_code == 404
 
-    def test_ingest_telemetry_no_fields(self):
+    def test_ingest_telemetry_no_fields(self, client):
         """POST /api/telemetry/ingest with no fields returns 400."""
         snapshot = client.get("/api/visualization/snapshot").json()
         sat_id = snapshot["satellites"][0]["id"]
@@ -129,7 +132,7 @@ class TestTelemetryEndpoints:
         })
         assert response.status_code == 400
 
-    def test_get_cdms(self):
+    def test_get_cdms(self, client):
         """GET /api/telemetry/cdms returns CDM list."""
         # First run a simulation step to generate CDMs
         client.post("/api/simulate/step", json={"step_seconds": 60})
@@ -149,7 +152,7 @@ class TestTelemetryEndpoints:
 class TestManeuverEndpoints:
     """Test maneuver command endpoints."""
 
-    def test_execute_maneuver(self):
+    def test_execute_maneuver(self, client):
         """POST /api/maneuvers/execute applies delta-V."""
         snapshot = client.get("/api/visualization/snapshot").json()
         # Find a NOMINAL satellite
@@ -166,7 +169,7 @@ class TestManeuverEndpoints:
         assert data["status"] == "OK"
         assert "fuel_remaining" in data
 
-    def test_execute_maneuver_eol_satellite(self):
+    def test_execute_maneuver_eol_satellite(self, client):
         """POST /api/maneuvers/execute on EOL satellite returns 400."""
         snapshot = client.get("/api/visualization/snapshot").json()
         eol_sat = next((s for s in snapshot["satellites"] if s["status"] == "EOL"), None)
@@ -180,7 +183,7 @@ class TestManeuverEndpoints:
         })
         assert response.status_code == 400
 
-    def test_schedule_evasion(self):
+    def test_schedule_evasion(self, client):
         """POST /api/maneuvers/schedule-evasion plans an evasion burn."""
         snapshot = client.get("/api/visualization/snapshot").json()
         sat = next((s for s in snapshot["satellites"] if s["status"] == "NOMINAL"), None)
@@ -196,7 +199,7 @@ class TestManeuverEndpoints:
         assert data["strategy"] == "PROGRADE"
         assert data["dv_magnitude_ms"] == 5.0
 
-    def test_maneuver_history(self):
+    def test_maneuver_history(self, client):
         """GET /api/maneuvers/history returns maneuver records."""
         response = client.get("/api/maneuvers/history")
         assert response.status_code == 200
@@ -212,7 +215,7 @@ class TestManeuverEndpoints:
 class TestSimulationEndpoints:
     """Test simulation control endpoints."""
 
-    def test_simulate_step(self):
+    def test_simulate_step(self, client):
         """POST /api/simulate/step advances simulation."""
         response = client.post("/api/simulate/step", json={"step_seconds": 60})
         assert response.status_code == 200
@@ -220,7 +223,7 @@ class TestSimulationEndpoints:
         assert data["status"] == "OK"
         assert "sim_time" in data
 
-    def test_simulation_status(self):
+    def test_simulation_status(self, client):
         """GET /api/simulate/status returns sim state."""
         response = client.get("/api/simulate/status")
         assert response.status_code == 200
@@ -228,7 +231,7 @@ class TestSimulationEndpoints:
         assert "running" in data
         assert "sim_time" in data
 
-    def test_start_stop_simulation(self):
+    def test_start_stop_simulation(self, client):
         """POST /api/simulate/run and /stop toggle simulation."""
         response = client.post("/api/simulate/run", json={
             "step_seconds": 30,
@@ -249,7 +252,7 @@ class TestSimulationEndpoints:
 class TestAlertEndpoints:
     """Test alert feed endpoints."""
 
-    def test_get_alerts(self):
+    def test_get_alerts(self, client):
         """GET /api/alerts returns alert list."""
         response = client.get("/api/alerts")
         assert response.status_code == 200
@@ -257,7 +260,7 @@ class TestAlertEndpoints:
         assert "alerts" in data
         assert "latest_id" in data
 
-    def test_get_alerts_since(self):
+    def test_get_alerts_since(self, client):
         """GET /api/alerts?after=0 returns all alerts."""
         response = client.get("/api/alerts?after=0")
         assert response.status_code == 200
@@ -270,7 +273,7 @@ class TestAlertEndpoints:
 class TestDashboard:
     """Test dashboard static file serving."""
 
-    def test_serve_dashboard(self):
+    def test_serve_dashboard(self, client):
         """GET / serves the dashboard HTML."""
         response = client.get("/")
         assert response.status_code == 200

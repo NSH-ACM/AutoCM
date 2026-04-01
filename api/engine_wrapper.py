@@ -35,41 +35,36 @@ def _load_engine():
     """Load the C++ physics engine or fall back to mock."""
     global _engine, _ENGINE_TYPE
 
-    # Path to compiled .pyd/.so in microservices/physics/build/
-    engine_build_path = os.path.join(
-        os.path.dirname(os.path.dirname(__file__)),
-        'microservices', 'physics', 'build'
-    )
-    sys.path.insert(0, engine_build_path)
+    # Use absolute path to the project root
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    root_dir = os.path.dirname(current_dir)
+
+    # 1. Try autocm_engine.so in root/core/
+    core_path = os.path.join(root_dir, 'core')
+    if core_path not in sys.path:
+        sys.path.insert(0, core_path)
 
     try:
-        import physics_engine
-        _engine = physics_engine
+        import autocm_engine
+        _engine = autocm_engine
         _ENGINE_TYPE = 'cpp'
-        print("[EngineWrapper] ✓ C++ physics engine loaded successfully")
+        print(f"[EngineWrapper] ✓ autocm_engine loaded from {core_path}")
+        return
     except ImportError:
-        # Try the engine/ directory build
-        engine_dir_build = os.path.join(
-            os.path.dirname(os.path.dirname(__file__)),
-            'engine', 'build'
-        )
-        sys.path.insert(0, engine_dir_build)
-        try:
-            import acm_engine
-            _engine = acm_engine
-            _ENGINE_TYPE = 'cpp'
-            print("[EngineWrapper] ✓ ACM engine (engine/) loaded successfully")
-        except ImportError:
-            # Fall back to mock
-            mock_path = os.path.join(
-                os.path.dirname(os.path.dirname(__file__)),
-                'microservices', 'physics'
-            )
-            sys.path.insert(0, mock_path)
-            import mock_physics_engine as mock_engine
-            _engine = mock_engine
-            _ENGINE_TYPE = 'mock'
-            print("[EngineWrapper] ⚠ C++ engine not found — using Python mock fallback")
+        pass
+
+    # 2. Try the Python mock in api/core/
+    mock_path = os.path.join(current_dir, 'core')
+    if mock_path not in sys.path:
+        sys.path.insert(0, mock_path)
+
+    try:
+        import mock_physics_engine as mock_engine
+        _engine = mock_engine
+        _ENGINE_TYPE = 'mock'
+        print(f"[EngineWrapper] ⚠ C++ engine not found — using Python mock from {mock_path}")
+    except ImportError:
+        print(f"[EngineWrapper] ✗ No engine or mock found. Searched {core_path} and {mock_path}")
 
 _load_engine()
 

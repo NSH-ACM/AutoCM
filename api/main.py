@@ -50,8 +50,8 @@ async def lifespan(app: FastAPI):
 
     print(f"[API] Server ready — {len(state.satellites)} satellites, "
           f"{len(state.debris)} debris tracked")
-    print(f"[API] Dashboard: http://localhost:8001")
-    print(f"[API] API Docs:  http://localhost:8001/docs")
+    print(f"[API] Dashboard: http://localhost:8000")
+    print(f"[API] API Docs:  http://localhost:8000/docs")
 
     yield
 
@@ -134,12 +134,10 @@ async def simulate_step(body: dict = None):
     step_seconds = 60
     if body and "step_seconds" in body:
         step_seconds = body["step_seconds"]
-    state.simulate_step(step_seconds)
-    return {
-        "status": "OK",
-        "sim_time": state.sim_time.isoformat(),
-        "step_seconds": step_seconds,
-    }
+    
+    # Use the autonomy engine for spec-compliant simulation
+    result = state.autonomy_engine.simulate_step(step_seconds)
+    return result
 
 
 @app.post("/api/simulate/run")
@@ -261,7 +259,7 @@ async def _simulation_loop():
     while True:
         try:
             if state.sim_running:
-                state.simulate_step(state.step_seconds)
+                state.autonomy_engine.simulate_step(state.step_seconds)
             await asyncio.sleep(state.real_interval_ms / 1000.0)
         except asyncio.CancelledError:
             break

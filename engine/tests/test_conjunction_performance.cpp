@@ -1,6 +1,7 @@
 #include <iostream>
 #include <chrono>
 #include <vector>
+#include <cmath>
 #include "../propagator.h"
 #include "../conjunction.h"
 
@@ -23,11 +24,11 @@ int main() {
         // Random LEO orbit
         double altitude = 450.0 + (i % 150);  // 450-600 km
         double r_norm = RE + altitude;
-        double v_circular = sqrt(MU / r_norm);
+        double v_circular = std::sqrt(MU / r_norm);
         
         sat.state.t = 0.0;
-        sat.state.r = {r_norm, 0.0, 0.0};
-        sat.state.v = {0.0, v_circular, 0.0};
+        sat.state.r = Vec3{r_norm, 0.0, 0.0};
+        sat.state.v = Vec3{0.0, v_circular, 0.0};
         
         satellites.push_back(sat);
     }
@@ -44,11 +45,11 @@ int main() {
         // Random LEO orbit
         double altitude = 400.0 + (i % 250);  // 400-650 km
         double r_norm = RE + altitude;
-        double v_circular = sqrt(MU / r_norm);
+        double v_circular = std::sqrt(MU / r_norm);
         
         deb.state.t = 0.0;
-        deb.state.r = {r_norm * cos(i * 0.01), r_norm * sin(i * 0.01), 0.0};
-        deb.state.v = {-v_circular * sin(i * 0.01), v_circular * cos(i * 0.01), 0.0};
+        deb.state.r = Vec3{r_norm * std::cos(i * 0.01), r_norm * std::sin(i * 0.01), 0.0};
+        deb.state.v = Vec3{-v_circular * std::sin(i * 0.01), v_circular * std::cos(i * 0.01), 0.0};
         
         debris.push_back(deb);
     }
