@@ -30,7 +30,7 @@ class TelemetryPayload(BaseModel):
 
 class ManeuverBurn(BaseModel):
     burn_id: str
-    burn_time: str  # ISO 8601 UTC
+    burnTime: str  # ISO 8601 UTC - camelCase per spec Section 4.2
     deltaV_vector: Dict[str, float] = Field(..., description="ECI delta-v in km/s {x, y, z}")
 
 
@@ -84,44 +84,82 @@ async def schedule_maneuver(payload: ScheduleManeuverPayload):
     Each burn: burn_id, burnTime (ISO 8601), deltaV_vector {x,y,z}
     Validates ground station line-of-sight
     Validates sufficient fuel
-    Returns: status "SCHEDULED", ground_station_los bool,
-        sufficient_fuel bool, projected_mass_remaining_kg
+    Returns: status "SCHEDULED", nested validation object per spec Section 4.2
     """
     try:
+        # Load ground stations if not already loaded
+        if not state.ground_stations:
+            state.load_ground_stations()
+
         # Get satellite
         sat = state.satellites.get(payload.satelliteId)
         if not sat:
             raise HTTPException(status_code=404, detail=f"Satellite {payload.satelliteId} not found")
-        
-        # Process each burn in sequence
-        results = []
+
+        # Process each burn in sequence with full validation
+        scheduled_burns = []
+        failed_burns = []
+        total_fuel_cost = 0.0
+
         for burn in payload.maneuver_sequence:
-            # Convert burn time to seconds since epoch
-            burn_time = state.parse_iso_time(burn.burn_time)
-            
-            # Create maneuver payload
-            maneuver_payload = {
-                "satellite_id": payload.satelliteId,
-                "burn_id": burn.burn_id,
-                "burn_time_offset_s": burn_time - state.autonomy_engine.sim_time,
-                "dv_eci_kms": burn.deltaV_vector,
-                "is_recovery": False
-            }
-            
-            # Validate and schedule
-            result = state.autonomy_engine.schedule_maneuver(maneuver_payload)
-            results.append(result)
-        
-        # Check if all maneuvers were scheduled successfully
-        all_scheduled = all(r["validation"]["valid"] for r in results)
-        
+            # Parse burn time
+            try:
+                burn_time = datetime.fromisoformat(burn.burnTime.replace('Z', '+00:00'))
+            except ValueError:
+                failed_burns.append({
+                    "burn_id": burn.burn_id,
+                    "error": f"Invalid burnTime format: {burn.burnTime}"
+                })
+                continue
+
+            # Validate maneuver against all constraints
+            validation = state.validate_maneuver(
+                sat_id=payload.satelliteId,
+                burn_time=burn_time,
+                delta_v=burn.deltaV_vector,
+                check_cooldown=True
+            )
+
+            if validation["valid"]:
+                # Schedule the burn
+                state.record_burn(payload.satelliteId, burn_time)
+                scheduled_burns.append({
+                    "burn_id": burn.burn_id,
+                    "burnTime": burn.burnTime,
+                    "status": "SCHEDULED",
+                    "fuel_cost_kg": validation["fuel_cost_kg"]
+                })
+                total_fuel_cost += validation["fuel_cost_kg"]
+            else:
+                failed_burns.append({
+                    "burn_id": burn.burn_id,
+                    "error": "; ".join(validation["errors"]),
+                    "validation": validation
+                })
+
+        # Calculate projected mass
+        projected_mass = max(0, sat.fuel_kg - total_fuel_cost) + 500.0  # 500kg dry mass
+
+        # Return per spec Section 4.2 with nested validation object
+        all_scheduled = len(failed_burns) == 0
+
         return {
-            "status": "SCHEDULED" if all_scheduled else "PARTIAL",
-            "ground_station_los": True,  # Stub - always true for now
-            "sufficient_fuel": all_scheduled,
-            "projected_mass_remaining_kg": sat.mass_dry + sat.mass_fuel,
-            "maneuvers": results
+            "status": "SCHEDULED" if all_scheduled else "REJECTED",
+            "validation": {
+                "ground_station_los": all(
+                    b.get("validation", {}).get("ground_station_los", False)
+                    for b in failed_burns
+                ) if failed_burns else True,
+                "sufficient_fuel": sat.fuel_kg >= total_fuel_cost,
+                "projected_mass_remaining_kg": round(projected_mass, 3)
+            },
+            "scheduled_count": len(scheduled_burns),
+            "failed_count": len(failed_burns),
+            "scheduled_burns": scheduled_burns,
+            "failed_burns": failed_burns
         }
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

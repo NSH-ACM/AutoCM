@@ -11,10 +11,12 @@ import os
 import math
 import time
 import random
+import csv
 from datetime import datetime, timezone, timedelta
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, field, asdict
 
+from .engine_wrapper import engine as physics_engine
 
 # ═══════════════════════════════════════════════════════════════════════════
 #  Satellite & Debris State Models
@@ -111,6 +113,7 @@ class StateManager:
     def __init__(self):
         self.satellites: Dict[str, SatelliteState] = {}
         self.debris: List[DebrisObject] = []
+        self.ground_stations: List[Dict] = []
         self.cdms: List[CDMRecord] = []
         self.maneuvers: List[ManeuverRecord] = []
         self.alerts: List[AlertRecord] = []
@@ -122,6 +125,12 @@ class StateManager:
         self._alert_counter: int = 0
         self._ws_clients: set = set()
         self._initialized: bool = False
+        # Station-keeping: nominal slot tracking (Section 5.2)
+        self.nominal_slots: Dict[str, Dict[str, float]] = {}  # sat_id -> {lat, lon, alt}
+        # Maneuver history for cooldown tracking (Section 5.1)
+        self.last_burn_time: Dict[str, datetime] = {}  # sat_id -> last burn timestamp
+        # EOL tracking
+        self.eol_triggered: set = set()  # sat_ids that triggered EOL
 
     # ── Initialization ────────────────────────────────────────────────────
 
@@ -268,96 +277,190 @@ class StateManager:
     # ── Simulation Step ───────────────────────────────────────────────────
 
     def simulate_step(self, dt_seconds: float = 60.0):
-        """Advance simulation by dt_seconds."""
+        """Advance simulation by dt_seconds using C++ J2/RK4 propagator."""
         self.sim_time += timedelta(seconds=dt_seconds)
 
-        # Propagate satellite positions (simple Kepler drift)
+        # Prepare satellite objects for physics engine
+        sat_objects = []
         for sat_id, sat in self.satellites.items():
             if sat.status == "EOL":
                 continue
+            sat_objects.append({
+                "id": sat_id,
+                "r": sat.r,
+                "v": sat.v
+            })
 
-            # Simple longitude drift (orbital period ~95 min for LEO)
-            orbital_period = 95 * 60  # seconds
-            lon_rate = 360.0 / orbital_period  # deg/s
-            inc = 55.0  # assumed inclination
+        # Propagate using C++ physics engine (J2 + RK4)
+        if sat_objects:
+            try:
+                updated_sats = physics_engine.propagate(sat_objects, dt_seconds)
+                for updated in updated_sats:
+                    sat_id = updated["id"]
+                    if sat_id in self.satellites:
+                        sat = self.satellites[sat_id]
+                        sat.r = updated["r"]
+                        sat.v = updated["v"]
+                        # Convert ECI back to lat/lon/alt
+                        sat.lat, sat.lon, sat.alt_km = self._eci_to_latlon(sat.r)
+                        sat.last_update = time.time()
+            except Exception as e:
+                print(f"[StateManager] Physics engine propagation failed: {e}")
+                # Fallback to simple drift
+                self._simple_propagate(dt_seconds)
 
-            # Advance true anomaly
+        # Prepare and propagate debris
+        debris_objects = []
+        for deb in self.debris:
+            deb_r = self._latlon_to_eci(deb.lat, deb.lon, deb.alt_km)
+            # Estimate debris velocity (rough approximation)
+            deb_v = self._compute_orbital_velocity(deb_r, deb.lat)
+            debris_objects.append({
+                "id": deb.id,
+                "r": deb_r,
+                "v": deb_v
+            })
+
+        if debris_objects:
+            try:
+                updated_debris = physics_engine.propagate(debris_objects, dt_seconds)
+                deb_dict = {d.id: d for d in self.debris}
+                for updated in updated_debris:
+                    deb_id = updated["id"]
+                    if deb_id in deb_dict:
+                        deb = deb_dict[deb_id]
+                        lat, lon, alt = self._eci_to_latlon(updated["r"])
+                        deb.lat = lat
+                        deb.lon = lon
+                        deb.alt_km = alt
+            except Exception as e:
+                # Fallback: simple longitude drift
+                for deb in self.debris:
+                    deb.lon = round(((deb.lon + 0.04 + 180) % 360) - 180, 3)
+
+        # Check for EOL satellites (< 5% fuel) and trigger graveyard
+        self._check_eol_management()
+
+        # Run real conjunction detection using KD-Tree
+        self._detect_conjunctions_kdtree()
+
+        # Update station-keeping status
+        self._update_station_keeping()
+
+    def _simple_propagate(self, dt_seconds: float):
+        """Fallback simple propagation when physics engine fails."""
+        for sat_id, sat in self.satellites.items():
+            if sat.status == "EOL":
+                continue
+            orbital_period = 95 * 60
+            lon_rate = 360.0 / orbital_period
+            inc = 55.0
             phase_advance = (dt_seconds / orbital_period) * 360.0
             current_phase = math.degrees(math.asin(
                 max(-1, min(1, sat.lat / inc))
             )) if abs(inc) > 0.01 else 0
-
             new_phase = current_phase + phase_advance
             sat.lat = round(inc * math.sin(math.radians(new_phase)), 4)
             sat.lon = round(((sat.lon + lon_rate * dt_seconds + 180) % 360) - 180, 4)
-
-            # Update ECI
             sat.r = self._latlon_to_eci(sat.lat, sat.lon, sat.alt_km)
             sat.v = self._compute_orbital_velocity(sat.r, sat.lat)
-
-            # Fuel consumption
-            if sat.status != "NOMINAL":
-                sat.fuel_kg = max(0, sat.fuel_kg - random.random() * 0.01)
-
             sat.last_update = time.time()
 
-        # Drift debris
-        for deb in self.debris:
-            deb.lon = round(((deb.lon + 0.04 + 180) % 360) - 180, 3)
-
-        # Run conjunction detection
-        self._detect_conjunctions()
-
-        # Generate maneuvers for evading satellites
-        self._update_maneuvers()
-
-    def _detect_conjunctions(self):
-        """Simple miss-distance calculation for CDMs."""
+    def _detect_conjunctions_kdtree(self):
+        """Real conjunction detection using C++ KD-Tree engine (Section 6.3)."""
         self.cdms.clear()
-        rng = random.Random(int(self.sim_time.timestamp()) % 100000)
 
+        # Prepare satellites for physics engine
+        sat_objects = []
+        for sat_id, sat in self.satellites.items():
+            if sat.status == "EOL":
+                continue
+            sat_objects.append({
+                "id": sat_id,
+                "r": sat.r,
+                "v": sat.v
+            })
+
+        # Prepare debris for physics engine
+        debris_objects = []
+        for deb in self.debris:
+            deb_r = self._latlon_to_eci(deb.lat, deb.lon, deb.alt_km)
+            deb_v = self._compute_orbital_velocity(deb_r, deb.lat)
+            debris_objects.append({
+                "id": deb.id,
+                "r": deb_r,
+                "v": deb_v
+            })
+
+        if not sat_objects or not debris_objects:
+            return
+
+        try:
+            # Use C++ engine for conjunction detection with 24h lookahead
+            epoch_iso = self.sim_time.isoformat()
+            raw_cdms = physics_engine.detect_conjunctions(
+                sat_objects, debris_objects,
+                lookahead_seconds=86400,  # 24 hours
+                epoch_iso=epoch_iso
+            )
+
+            # Convert to CDMRecord format
+            for cdm in raw_cdms:
+                miss_distance = cdm.get("missDistance", cdm.get("miss_distance", 999))
+                if miss_distance < 5.0:  # Only report if < 5km
+                    # Calculate TCA timestamp
+                    tca_seconds = cdm.get("tca_seconds_from_now", 0)
+                    tca = self.sim_time + timedelta(seconds=tca_seconds)
+
+                    self.cdms.append(CDMRecord(
+                        satelliteId=cdm.get("satellite_id", cdm.get("satelliteId", "")),
+                        debrisId=cdm.get("debris_id", cdm.get("debrisId", "")),
+                        tca=tca.isoformat(),
+                        missDistance=round(miss_distance, 4),
+                        probability=round(cdm.get("probability", 0.001), 6),
+                    ))
+
+            # Generate alerts for critical CDMs (< 100m)
+            for cdm in self.cdms:
+                if cdm.missDistance < 0.1:
+                    self._add_alert(
+                        "CONJUNCTION",
+                        "CRITICAL",
+                        f"Critical conjunction: {cdm.satelliteId} vs {cdm.debrisId} "
+                        f"— miss {cdm.missDistance*1000:.0f}m at {cdm.tca[:19]}Z",
+                        cdm.satelliteId,
+                    )
+
+        except Exception as e:
+            print(f"[StateManager] KD-Tree conjunction detection failed: {e}")
+            # Fallback to old method if C++ engine fails
+            self._detect_conjunctions_fallback()
+
+    def _detect_conjunctions_fallback(self):
+        """Fallback simple miss-distance calculation for CDMs."""
+        rng = random.Random(int(self.sim_time.timestamp()) % 100000)
         sat_list = list(self.satellites.values())
         for sat in sat_list:
             if sat.status == "EOL":
                 continue
-
-            # Check against nearby debris (simplified)
             num_threats = 1 if sat.status == "EVADING" else (1 if rng.random() < 0.12 else 0)
             for _ in range(num_threats):
                 deb_idx = rng.randint(0, len(self.debris) - 1)
                 deb = self.debris[deb_idx]
-
-                # Compute rough miss distance
                 if rng.random() < 0.25:
-                    miss_km = rng.random() * 0.1  # critical
+                    miss_km = rng.random() * 0.1
                 elif rng.random() < 0.5:
-                    miss_km = rng.random() * 2.0  # warning
+                    miss_km = rng.random() * 2.0
                 else:
-                    miss_km = 2.0 + rng.random() * 10.0  # advisory
-
+                    miss_km = 2.0 + rng.random() * 10.0
                 tca = self.sim_time + timedelta(hours=rng.random() * 20)
-
                 self.cdms.append(CDMRecord(
                     satelliteId=sat.id,
                     debrisId=deb.id,
                     tca=tca.isoformat(),
                     missDistance=round(miss_km, 4),
-                    probability=round(
-                        (0.01 + rng.random() * 0.05) if miss_km < 0.1
-                        else rng.random() * 0.001, 6
-                    ),
+                    probability=round((0.01 + rng.random() * 0.05) if miss_km < 0.1 else rng.random() * 0.001, 6),
                 ))
-
-        # Generate alerts for critical CDMs
-        for cdm in self.cdms:
-            if cdm.missDistance < 0.1:
-                self._add_alert(
-                    "CONJUNCTION",
-                    "CRITICAL",
-                    f"Critical conjunction: {cdm.satelliteId} vs {cdm.debrisId} "
-                    f"— miss {cdm.missDistance*1000:.0f}m at {cdm.tca[:19]}Z",
-                    cdm.satelliteId,
-                )
 
     def _update_maneuvers(self):
         """Generate maneuver records for active burns."""
@@ -488,6 +591,242 @@ class StateManager:
             "maneuver": maneuver.to_dict(),
             "fuel_remaining": round(sat.fuel_kg, 3),
         }
+
+    # ── EOL Management (Section 5.3) ────────────────────────────────────────
+
+    def _check_eol_management(self):
+        """Autonomous EOL: trigger graveyard orbit when fuel < 5%."""
+        FUEL_CAPACITY = 50.0  # kg (assumed full capacity)
+        EOL_THRESHOLD = 0.05 * FUEL_CAPACITY  # 5% = 2.5 kg
+        GRAVEYARD_DELTA_KM = 25.0  # +25km graveyard orbit
+
+        for sat_id, sat in self.satellites.items():
+            if sat.status == "EOL" or sat_id in self.eol_triggered:
+                continue
+
+            if sat.fuel_kg < EOL_THRESHOLD:
+                # Trigger EOL sequence
+                self.eol_triggered.add(sat_id)
+                sat.status = "EOL"
+
+                # Plan graveyard orbit raise (+25km)
+                # Delta-v for altitude change: approximately 10-15 m/s per km at LEO
+                dv_graveyard = 0.015 * GRAVEYARD_DELTA_KM  # ~0.375 km/s
+
+                self._add_alert(
+                    "EOL",
+                    "WARNING",
+                    f"SAT {sat_id} fuel {sat.fuel_kg:.2f}kg below 5% threshold. "
+                    f"Autonomous EOL triggered: raising to graveyard orbit (+{GRAVEYARD_DELTA_KM}km)",
+                    sat_id,
+                )
+
+                # Schedule graveyard maneuver
+                maneuver = ManeuverRecord(
+                    satelliteId=sat_id,
+                    burnId=f"EOL-{sat_id}-{int(time.time())}",
+                    burnTime=self.sim_time.isoformat(),
+                    duration=300.0,
+                    type="EOL_GRAVEYARD",
+                    deltaV={"x": dv_graveyard, "y": 0, "z": 0},
+                    status="PENDING",
+                    fuelCost=round(sat.fuel_kg * 0.5, 3),  # Use remaining fuel
+                )
+                self.maneuvers.append(maneuver)
+                sat.alt_km += GRAVEYARD_DELTA_KM
+
+    # ── Station-Keeping Box Monitoring (Section 5.2) ──────────────────────
+
+    def _update_station_keeping(self):
+        """Monitor if satellites are within 10km nominal orbital slot."""
+        STATION_KEEPING_THRESHOLD_KM = 10.0
+
+        for sat_id, sat in self.satellites.items():
+            if sat.status == "EOL":
+                continue
+
+            # Initialize nominal slot on first encounter
+            if sat_id not in self.nominal_slots:
+                self.nominal_slots[sat_id] = {
+                    "lat": sat.lat,
+                    "lon": sat.lon,
+                    "alt_km": sat.alt_km
+                }
+                continue
+
+            slot = self.nominal_slots[sat_id]
+
+            # Calculate 3D drift from nominal slot
+            # Approximate: 1 deg lat/lon ~ 111km at equator
+            lat_drift_km = abs(sat.lat - slot["lat"]) * 111.0
+            lon_drift_km = abs(sat.lon - slot["lon"]) * 111.0 * math.cos(math.radians(sat.lat))
+            alt_drift_km = abs(sat.alt_km - slot["alt_km"])
+
+            # Total drift (Euclidean approximation)
+            total_drift = math.sqrt(lat_drift_km**2 + lon_drift_km**2 + alt_drift_km**2)
+
+            if total_drift > STATION_KEEPING_THRESHOLD_KM and sat.status == "NOMINAL":
+                self._add_alert(
+                    "STATION_KEEPING",
+                    "WARNING",
+                    f"SAT {sat_id} drifted {total_drift:.1f}km from nominal slot "
+                    f"(threshold: {STATION_KEEPING_THRESHOLD_KM}km). Recovery maneuver required.",
+                    sat_id,
+                )
+
+    # ── Ground Station Operations (Section 5.4) ───────────────────────────
+
+    def load_ground_stations(self, csv_path: str = None):
+        """Load ground station data from CSV."""
+        if csv_path is None:
+            csv_path = os.path.join(
+                os.path.dirname(os.path.dirname(__file__)),
+                "data", "ground_stations.csv"
+            )
+
+        if not os.path.exists(csv_path):
+            print(f"[StateManager] Ground stations file not found: {csv_path}")
+            # Create default ground stations
+            self.ground_stations = [
+                {"id": "GS-1", "lat": 28.5, "lon": -80.6, "alt_km": 0.1, "min_elevation": 5.0},
+                {"id": "GS-2", "lat": 35.0, "lon": 139.0, "alt_km": 0.1, "min_elevation": 5.0},
+                {"id": "GS-3", "lat": -30.0, "lon": 149.0, "alt_km": 0.1, "min_elevation": 5.0},
+            ]
+            return
+
+        try:
+            with open(csv_path, 'r') as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    self.ground_stations.append({
+                        "id": row.get("id", f"GS-{len(self.ground_stations)}"),
+                        "lat": float(row.get("lat", 0)),
+                        "lon": float(row.get("lon", 0)),
+                        "alt_km": float(row.get("alt_km", 0)),
+                        "min_elevation": float(row.get("min_elevation", 5.0)),
+                    })
+            print(f"[StateManager] Loaded {len(self.ground_stations)} ground stations")
+        except Exception as e:
+            print(f"[StateManager] Error loading ground stations: {e}")
+
+    def check_ground_station_los(self, sat_id: str, timestamp: datetime = None) -> bool:
+        """Check if satellite has line-of-sight to any ground station (Section 5.4)."""
+        if timestamp is None:
+            timestamp = self.sim_time
+
+        sat = self.satellites.get(sat_id)
+        if not sat:
+            return False
+
+        if not self.ground_stations:
+            self.load_ground_stations()
+
+        try:
+            # Use physics engine for LOS check
+            sat_obj = {"r": sat.r}
+            timestamp_iso = timestamp.isoformat()
+            has_los = physics_engine.check_los(sat_obj, self.ground_stations, timestamp_iso)
+            return has_los
+        except Exception as e:
+            # Fallback: simple geometric check
+            return self._check_los_geometric(sat, timestamp)
+
+    def _check_los_geometric(self, sat: SatelliteState, timestamp: datetime) -> bool:
+        """Fallback geometric LOS check accounting for Earth curvature."""
+        R_EARTH = 6371.0  # km
+
+        for gs in self.ground_stations:
+            # Convert ground station to ECI (simplified, ignoring Earth rotation)
+            gs_r = self._latlon_to_eci(gs["lat"], gs["lon"], gs["alt_km"])
+
+            # Vector from ground station to satellite
+            dx = sat.r["x"] - gs_r["x"]
+            dy = sat.r["y"] - gs_r["y"]
+            dz = sat.r["z"] - gs_r["z"]
+            range_km = math.sqrt(dx**2 + dy**2 + dz**2)
+
+            # Elevation angle calculation
+            # cos(elevation) = (r_sat * sin(range_angle)) / range
+            # Simplified: check if satellite is above horizon
+            gs_mag = math.sqrt(gs_r["x"]**2 + gs_r["y"]**2 + gs_r["z"]**2)
+            sat_mag = math.sqrt(sat.r["x"]**2 + sat.r["y"]**2 + sat.r["z"]**2)
+
+            # Minimum elevation check (simplified)
+            # If satellite altitude > ground station and within visible arc
+            if sat.alt_km > gs["alt_km"]:
+                # Rough check: satellite should be within ~2000km ground range for LEO
+                if range_km < 2000:
+                    return True
+
+        return False
+
+    # ── Maneuver Validation (Sections 4.2, 5.1, 5.4) ──────────────────────
+
+    def validate_maneuver(self, sat_id: str, burn_time: datetime,
+                          delta_v: dict, check_cooldown: bool = True) -> dict:
+        """
+        Validate maneuver against mission constraints.
+
+        Returns validation object with:
+        - valid: bool
+        - ground_station_los: bool
+        - sufficient_fuel: bool
+        - uplink_latency_ok: bool (T >= current_time + 10s)
+        - thruster_cooldown_ok: bool (600s since last burn)
+        - errors: list of constraint violations
+        """
+        errors = []
+        sat = self.satellites.get(sat_id)
+
+        if not sat:
+            return {"valid": False, "errors": [f"Satellite {sat_id} not found"]}
+
+        # Check 1: Ground Station LOS (Section 5.4)
+        has_los = self.check_ground_station_los(sat_id, burn_time)
+        if not has_los:
+            errors.append("No ground station line-of-sight")
+
+        # Check 2: Sufficient Fuel (Tsiolkovsky)
+        dv_mag = math.sqrt(delta_v.get("x", 0)**2 +
+                          delta_v.get("y", 0)**2 +
+                          delta_v.get("z", 0)**2)
+        mass = 500.0  # kg
+        isp = 300.0   # s
+        g0 = 9.80665
+        fuel_cost = mass * (1 - math.exp(-abs(dv_mag) / (isp * g0)))
+        has_fuel = fuel_cost <= sat.fuel_kg
+        if not has_fuel:
+            errors.append(f"Insufficient fuel: need {fuel_cost:.3f}kg, have {sat.fuel_kg:.3f}kg")
+
+        # Check 3: Uplink Latency (Section 5.4) - 10 second minimum
+        min_burn_time = self.sim_time + timedelta(seconds=10)
+        latency_ok = burn_time >= min_burn_time
+        if not latency_ok:
+            errors.append(f"Burn time violates 10s uplink latency: must be >= {min_burn_time.isoformat()}")
+
+        # Check 4: Thruster Cooldown (Section 5.1) - 600 second rest
+        cooldown_ok = True
+        if check_cooldown and sat_id in self.last_burn_time:
+            time_since_last = (burn_time - self.last_burn_time[sat_id]).total_seconds()
+            cooldown_ok = time_since_last >= 600
+            if not cooldown_ok:
+                errors.append(f"Thruster cooldown violation: {time_since_last:.0f}s since last burn (need 600s)")
+
+        valid = has_los and has_fuel and latency_ok and cooldown_ok
+
+        return {
+            "valid": valid,
+            "ground_station_los": has_los,
+            "sufficient_fuel": has_fuel,
+            "uplink_latency_ok": latency_ok,
+            "thruster_cooldown_ok": cooldown_ok,
+            "fuel_cost_kg": round(fuel_cost, 4),
+            "errors": errors
+        }
+
+    def record_burn(self, sat_id: str, timestamp: datetime):
+        """Record burn time for cooldown tracking."""
+        self.last_burn_time[sat_id] = timestamp
 
     # ── Snapshot Builder ──────────────────────────────────────────────────
 
