@@ -103,19 +103,19 @@ def optimize_fleet_maneuvers(
     # Calculate optimization metrics for each satellite
     sat_metrics = {}
     for sat_id, sat in satellites.items():
-        fuel_kg = sat.get('fuel_kg', 50.0)
-        status = sat.get('status', 'NOMINAL')
+        fuel_kg = sat.get('fuel_kg', 50.0) if isinstance(sat, dict) else getattr(sat, 'fuel_kg', 50.0)
+        status = sat.get('status', 'NOMINAL') if isinstance(sat, dict) else getattr(sat, 'status', 'NOMINAL')
         cdms_for_sat = cdms_by_sat.get(sat_id, [])
         
         # Critical CDMs requiring action
-        critical_cdms = [c for c in cdms_for_sat if c.get('missDistance', 999) < CRITICAL_MISS_KM]
+        critical_cdms = [c for c in cdms_for_sat if (c.get('missDistance', 999) if isinstance(c, dict) else getattr(c, 'missDistance', 999)) < CRITICAL_MISS_KM]
         
         # Calculate fuel cost for potential evasion
         total_fuel_cost = 0.0
         for cdm in critical_cdms:
             # Minimum Δv for 100m standoff at LEO ~0.01 km/s = 10 m/s
             dv_ms = 10.0
-            mass_kg = sat.get('currentMass', 500.0) + fuel_kg
+            mass_kg = (sat.get('currentMass', 500.0) if isinstance(sat, dict) else getattr(sat, 'currentMass', 500.0)) + fuel_kg
             fuel_cost = compute_fuel_consumed(mass_kg, dv_ms)
             total_fuel_cost += fuel_cost
         
@@ -391,13 +391,15 @@ class AutonomyManager:
 
         # Deduplicate: keep most critical CDM per satellite
         best_per_sat: Dict[str, Dict] = {}
-        for cdm in critical:
+        for cdm_item in critical:
+            cdm, metadata = cdm_item if isinstance(cdm_item, tuple) else (cdm_item, {})
             sat_id = cdm['satelliteId'] if isinstance(cdm, dict) else cdm.satelliteId
             existing = best_per_sat.get(sat_id)
             def _get_miss(c):
-                return c['missDistance'] if isinstance(c, dict) else c.missDistance
-            if not existing or _get_miss(cdm) < _get_miss(existing):
-                best_per_sat[sat_id] = cdm
+                c_actual = c[0] if isinstance(c, tuple) else c
+                return c_actual['missDistance'] if isinstance(c_actual, dict) else c_actual.missDistance
+            if not existing or _get_miss(cdm_item) < _get_miss(existing):
+                best_per_sat[sat_id] = cdm_item
 
         # Filter by satellite status and cooldown
         actionable = []
@@ -406,7 +408,7 @@ class AutonomyManager:
             if not sat:
                 continue
 
-            status = sat.get('status', SatelliteStatus.NOMINAL)
+            status = sat.get('status', SatelliteStatus.NOMINAL) if isinstance(sat, dict) else getattr(sat, 'status', SatelliteStatus.NOMINAL)
             if status in (SatelliteStatus.EVADING, SatelliteStatus.EOL):
                 print(f"[AUTONOMY] CDM skip: {sat_id} already {status}")
                 continue
@@ -424,7 +426,7 @@ class AutonomyManager:
     # ── Step 2: Process Critical CDM ──────────────────────────────────────
 
     def _process_critical_cdm(self, cdm: Dict, satellites: Dict[str, Dict],
-                                current_time: datetime) -> Optional[Dict]:
+                                current_time: datetime, metadata: Dict = None) -> Optional[Dict]:
         """
         Process a single critical CDM:
           1. Plan evasion burn (minimum ΔV in RTN frame)
@@ -434,13 +436,15 @@ class AutonomyManager:
 
         Returns action dict or None.
         """
-        sat_id = cdm['satelliteId']
+        if metadata is None:
+            metadata = {}
+        sat_id = cdm['satelliteId'] if isinstance(cdm, dict) else cdm.satelliteId
         sat = satellites.get(sat_id)
         if not sat:
             return None
 
         miss_km = cdm['missDistance'] if isinstance(cdm, dict) else cdm.missDistance
-        time_to_tca = cdm.get('_time_to_tca', 3600) if isinstance(cdm, dict) else getattr(cdm, '_time_to_tca', 3600)
+        time_to_tca = metadata.get('_time_to_tca', 3600) if metadata else 3600
 
         debris_id = cdm.get('debrisId', '?') if isinstance(cdm, dict) else getattr(cdm, 'debrisId', '?')
         print(f"[AUTONOMY] CRITICAL CDM: {sat_id} vs {debris_id} | "
@@ -455,7 +459,7 @@ class AutonomyManager:
         # ── Plan recovery burn ────────────────────────────────────────────
         recovery_result = self._plan_recovery_burn(
             evasion_result['deltaV_ECI'],
-            sat.get('currentMass', 500.0)
+            sat.get('currentMass', 500.0) if isinstance(sat, dict) else getattr(sat, 'currentMass', 500.0)
         )
 
         # ── Update status ─────────────────────────────────────────────────
@@ -495,7 +499,7 @@ class AutonomyManager:
         """
         # Try C++ engine first
         if self.engine and hasattr(self.engine, 'plan_evasion'):
-            debris = cdm.get('_debris_state')
+            debris = cdm.get('_debris_state') if isinstance(cdm, dict) else getattr(cdm, '_debris_state', None)
             if debris:
                 result = self.engine.plan_evasion(satellite, debris)
                 if result:
@@ -644,7 +648,7 @@ class AutonomyManager:
         """
         actions = []
         for sat_id, sat in satellites.items():
-            status = sat.get('status', SatelliteStatus.NOMINAL)
+            status = sat.get('status', SatelliteStatus.NOMINAL) if isinstance(sat, dict) else getattr(sat, 'status', SatelliteStatus.NOMINAL)
 
             if status == SatelliteStatus.EVADING:
                 # Check if evasion burn has been executed

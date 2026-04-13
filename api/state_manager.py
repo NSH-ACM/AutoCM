@@ -442,6 +442,10 @@ class StateManager:
             sat.v = self._compute_orbital_velocity(sat.r, sat.lat)
             sat.last_update = time.time()
 
+    def detect_conjunctions(self):
+        """Public method to detect conjunctions using C++ KD-Tree engine."""
+        self._detect_conjunctions_kdtree()
+
     def _detect_conjunctions_kdtree(self):
         """Real conjunction detection using C++ KD-Tree engine (Section 6.3)."""
         self.cdms.clear()
