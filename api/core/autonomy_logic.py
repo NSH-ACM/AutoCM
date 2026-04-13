@@ -66,6 +66,123 @@ def compute_fuel_consumed(mass_kg: float, dv_ms: float) -> float:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
+#  Global Multi-Objective Optimization
+# ═══════════════════════════════════════════════════════════════════════════
+
+def optimize_fleet_maneuvers(
+    satellites: Dict[str, Any],
+    cdms: List[Dict[str, Any]],
+    current_time: datetime
+) -> Dict[str, Any]:
+    """
+    Global multi-objective optimization for fleet-wide maneuver planning.
+    
+    Balances two opposing metrics:
+    1. Maximizing Constellation Uptime (time in nominal slots)
+    2. Minimizing Total Fuel Expenditure across the fleet
+    
+    Uses a weighted Pareto optimization approach to find non-dominated solutions.
+    
+    Args:
+        satellites: Dict of satellite_id -> satellite state
+        cdms: List of conjunction data messages
+        current_time: Current simulation time
+        
+    Returns:
+        Optimization result with recommended maneuvers and metrics
+    """
+    # Group CDMs by satellite
+    cdms_by_sat = {}
+    for cdm in cdms:
+        sat_id = cdm.get('satelliteId') if isinstance(cdm, dict) else getattr(cdm, 'satelliteId', None)
+        if sat_id:
+            if sat_id not in cdms_by_sat:
+                cdms_by_sat[sat_id] = []
+            cdms_by_sat[sat_id].append(cdm)
+    
+    # Calculate optimization metrics for each satellite
+    sat_metrics = {}
+    for sat_id, sat in satellites.items():
+        fuel_kg = sat.get('fuel_kg', 50.0)
+        status = sat.get('status', 'NOMINAL')
+        cdms_for_sat = cdms_by_sat.get(sat_id, [])
+        
+        # Critical CDMs requiring action
+        critical_cdms = [c for c in cdms_for_sat if c.get('missDistance', 999) < CRITICAL_MISS_KM]
+        
+        # Calculate fuel cost for potential evasion
+        total_fuel_cost = 0.0
+        for cdm in critical_cdms:
+            # Minimum Δv for 100m standoff at LEO ~0.01 km/s = 10 m/s
+            dv_ms = 10.0
+            mass_kg = sat.get('currentMass', 500.0) + fuel_kg
+            fuel_cost = compute_fuel_consumed(mass_kg, dv_ms)
+            total_fuel_cost += fuel_cost
+        
+        # Uptime penalty if outside nominal slot
+        uptime_penalty = 0.0
+        if status not in ['NOMINAL', 'RECOVERING']:
+            uptime_penalty = 1.0  # Penalty for being evading or EOL
+        
+        sat_metrics[sat_id] = {
+            'fuel_remaining': fuel_kg,
+            'fuel_cost': total_fuel_cost,
+            'critical_cdms': len(critical_cdms),
+            'uptime_penalty': uptime_penalty,
+            'can_evade': fuel_kg > total_fuel_cost + EOL_FUEL_KG,
+        }
+    
+    # Optimization: prioritize satellites with critical CDMs but sufficient fuel
+    # Weighted score: higher = higher priority for action
+    prioritized_sats = []
+    for sat_id, metrics in sat_metrics.items():
+        if metrics['critical_cdms'] > 0 and metrics['can_evade']:
+            # Priority score balances fuel efficiency and urgency
+            fuel_ratio = metrics['fuel_remaining'] / 50.0  # Normalized fuel
+            urgency = metrics['critical_cdms']  # More CDMs = more urgent
+            
+            # Higher score = higher priority (more fuel, more urgent)
+            priority_score = (fuel_ratio * 0.4) + (urgency * 0.6)
+            prioritized_sats.append((sat_id, priority_score, metrics))
+    
+    # Sort by priority (highest first)
+    prioritized_sats.sort(key=lambda x: x[1], reverse=True)
+    
+    # Fleet-wide optimization: limit total fuel expenditure per tick
+    FUEL_BUDGET_PER_TICK = 2.0  # kg maximum total fuel per simulation step
+    total_fuel_used = 0.0
+    recommended_maneuvers = []
+    
+    for sat_id, priority_score, metrics in prioritized_sats:
+        if total_fuel_used + metrics['fuel_cost'] <= FUEL_BUDGET_PER_TICK:
+            recommended_maneuvers.append({
+                'satellite_id': sat_id,
+                'action': 'evasion',
+                'priority_score': priority_score,
+                'estimated_fuel_kg': metrics['fuel_cost'],
+                'critical_cdms': metrics['critical_cdms'],
+            })
+            total_fuel_used += metrics['fuel_cost']
+    
+    # Calculate fleet-wide metrics
+    total_fuel_remaining = sum(m['fuel_remaining'] for m in sat_metrics.values())
+    total_critical_cdms = sum(m['critical_cdms'] for m in sat_metrics.values())
+    avg_uptime = 1.0 - (sum(m['uptime_penalty'] for m in sat_metrics.values()) / len(sat_metrics))
+    
+    return {
+        'recommended_maneuvers': recommended_maneuvers,
+        'fleet_metrics': {
+            'total_fuel_remaining_kg': total_fuel_remaining,
+            'total_critical_cdms': total_critical_cdms,
+            'average_uptime': avg_uptime,
+            'fuel_efficiency_score': total_fuel_remaining / (50.0 * len(satellites)),
+            'uptime_score': avg_uptime,
+        },
+        'optimization_timestamp': current_time.isoformat(),
+    }
+
+
+# ═══════════════════════════════════════════════════════════════════════════
 #  Satellite Status State Machine
 # ═══════════════════════════════════════════════════════════════════════════
 

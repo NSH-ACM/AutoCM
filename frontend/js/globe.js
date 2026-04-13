@@ -145,6 +145,9 @@ const Globe = (() => {
 
     // Ground stations
     addGroundStations();
+    
+    // Terminator line (day/night boundary)
+    addTerminatorLine();
 
     // Default camera — centered on India, looking straight down
     viewer.camera.setView({
@@ -260,6 +263,35 @@ const Globe = (() => {
     });
   }
 
+  // ── Terminator Line (Day/Night Boundary) ─────────────────────────────────
+  function addTerminatorLine() {
+    const terminator = viewer.entities.add({
+      name: 'Terminator Line',
+      polyline: {
+        positions: Cesium.Cartesian3.fromDegreesArray([
+          -180, 66.5,
+          -90, 66.5,
+          0, 66.5,
+          90, 66.5,
+          180, 66.5,
+          180, -66.5,
+          90, -66.5,
+          0, -66.5,
+          -90, -66.5,
+          -180, -66.5,
+          -180, 66.5
+        ]),
+        width: 2,
+        material: Cesium.Material.fromType('PolylineGlow', {
+          glowPower: 0.2,
+          color: Cesium.Color.fromCssColorString('rgba(255, 200, 100, 0.4)'),
+        }),
+        clampToGround: true,
+      },
+    });
+    groundStationEntities.push(terminator);
+  }
+
   // ── Update Satellites ────────────────────────────────────────────────────
   function updateSatellites(satellites) {
     satPointCollection.removeAll();
@@ -288,9 +320,10 @@ const Globe = (() => {
 
       satIdMap[sat.id] = { index: idx, sat, position: pos, point };
 
-      // Orbit trails — only for small constellations for performance
+      // Orbit trails and predicted trajectory — only for small constellations for performance
       if (satellites.length <= 60) {
         addOrbitTrail(sat);
+        addPredictedTrajectory(sat);
       }
     });
   }
