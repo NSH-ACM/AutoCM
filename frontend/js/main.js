@@ -30,7 +30,6 @@
 
     // Init all modules (after split layout settles)
     setTimeout(() => {
-      GroundTrack.init();
       Globe.init();
       Bullseye.init();
       FuelPanel.init();
