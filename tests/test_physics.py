@@ -115,11 +115,13 @@ class TestRTNtoECI:
         v = {"x": 0.0, "y": 7.35, "z": 0.0}
 
         # Compute unit vectors
-        r_mag = math.sqrt(sum(v**2 for v in r.values()))
-        v_mag = math.sqrt(sum(v**2 for v in v.values()))
+        r_vec = list(r.values())
+        v_vec = list(v.values())
+        r_mag = math.sqrt(sum(c**2 for c in r_vec))
+        v_mag = math.sqrt(sum(c**2 for c in v_vec))
 
-        r_hat = {k: v / r_mag for k, v in r.values()}
-        t_hat = {k: v / v_mag for k, v in v.values()}
+        r_hat = {k: val / r_mag for k, val in r.items()}
+        t_hat = {k: val / v_mag for k, val in v.items()}
 
         # Normal vector
         n_hat = {
@@ -133,7 +135,7 @@ class TestRTNtoECI:
         assert abs(r_dot_t) < 0.01
 
         # R × T should equal N (or anti-parallel)
-        n_mag = math.sqrt(sum(v**2 for v in n_hat.values()))
+        n_mag = math.sqrt(sum(c**2 for c in n_hat.values()))
         assert 0.99 < n_mag < 1.01
 
     def test_rtn_to_eci_transformation(self):
