@@ -139,6 +139,16 @@ class StateManager:
 
     # ── Initialization ────────────────────────────────────────────────────
 
+    @staticmethod
+    def parse_iso_time(iso_str: str):
+        """Parse an ISO 8601 timestamp string to a datetime object."""
+        from datetime import datetime, timezone
+        iso_str = iso_str.replace('Z', '+00:00')
+        try:
+            return datetime.fromisoformat(iso_str)
+        except ValueError:
+            return datetime.now(timezone.utc)
+
     def load_catalog(self, catalog_path: str = None):
         """Load satellite and debris catalog from JSON file."""
         if catalog_path is None:
