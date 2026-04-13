@@ -467,4 +467,16 @@
     }
   }
 
+  // ══════════════════════════════════════════════════════════════════════════
+  // TIMER CLEANUP
+  // ══════════════════════════════════════════════════════════════════════════
+  window.addEventListener('beforeunload', () => {
+    // Clear all intervals and timeouts to prevent memory leaks
+    const maxId = Math.max(setInterval(() => {}, 1000), setTimeout(() => {}, 1000));
+    for (let i = 1; i < maxId; i++) {
+      clearInterval(i);
+      clearTimeout(i);
+    }
+  });
+
 })();
