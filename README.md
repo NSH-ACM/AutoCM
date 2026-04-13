@@ -1,8 +1,6 @@
 # AutoCM — Autonomous Constellation Manager
 
 **National Space Hackathon 2026**  
-**Team:** Project AETHER  
-**Event:** IIT Delhi National Space Hackathon
 
 ---
 
@@ -296,10 +294,6 @@ AutoCM/
 
 ## License
 
-This project is developed for the **National Space Hackathon 2026**. All rights reserved by the Project AETHER team.
+This project is developed for the **National Space Hackathon 2026**.
 
 ---
-
-**Contact:** [Team Contact Information]  
-**Repository:** [GitHub/Repository URL]  
-**Demo Video:** [Demo Link]
