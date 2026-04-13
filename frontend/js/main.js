@@ -30,6 +30,7 @@
 
     // Init all modules (after split layout settles)
     setTimeout(() => {
+      GroundTrack.init();
       Globe.init();
       Bullseye.init();
       FuelPanel.init();
@@ -38,6 +39,7 @@
       SpeedControl.init();
       Alerts.init();
       Drawer.init();
+      ViewMode.init();
 
       // Wire up events
       setupEventListeners();
