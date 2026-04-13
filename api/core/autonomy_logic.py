@@ -230,12 +230,13 @@ class AutonomyManager:
         # Pre-filter and classify
         critical = []
         for cdm in cdms:
-            severity = classify_cdm(cdm.get('missDistance', 999))
+            miss_dist = cdm.get('missDistance', 999) if isinstance(cdm, dict) else getattr(cdm, 'missDistance', 999)
+            severity = classify_cdm(miss_dist)
             if severity != CDMSeverity.CRITICAL:
                 continue
 
             # Check time to TCA
-            tca = cdm.get('tca')
+            tca = cdm.get('tca') if isinstance(cdm, dict) else getattr(cdm, 'tca', None)
             if isinstance(tca, str):
                 try:
                     tca = datetime.fromisoformat(tca.replace('Z', '+00:00'))
@@ -252,17 +253,24 @@ class AutonomyManager:
                       f"({time_to_tca:.0f}s), cannot uplink in time")
                 continue
 
-            cdm['_severity'] = severity
-            cdm['_tca_dt'] = tca
-            cdm['_time_to_tca'] = time_to_tca
+            if isinstance(cdm, dict):
+                cdm['_severity'] = severity
+                cdm['_tca_dt'] = tca
+                cdm['_time_to_tca'] = time_to_tca
+            else:
+                cdm._severity = severity
+                cdm._tca_dt = tca
+                cdm._time_to_tca = time_to_tca
             critical.append(cdm)
 
         # Deduplicate: keep most critical CDM per satellite
         best_per_sat: Dict[str, Dict] = {}
         for cdm in critical:
-            sat_id = cdm['satelliteId']
+            sat_id = cdm['satelliteId'] if isinstance(cdm, dict) else cdm.satelliteId
             existing = best_per_sat.get(sat_id)
-            if not existing or cdm['missDistance'] < existing['missDistance']:
+            def _get_miss(c):
+                return c['missDistance'] if isinstance(c, dict) else c.missDistance
+            if not existing or _get_miss(cdm) < _get_miss(existing):
                 best_per_sat[sat_id] = cdm
 
         # Filter by satellite status and cooldown
