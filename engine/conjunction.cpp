@@ -174,7 +174,6 @@ std::vector<CDMWarning> run_conjunction_assessment(
                 
                 const OrbitalObject* deb_obj = it->second;
                 
-                // Fast analytical TCA estimation (Section 6.3)
                 Vec3 dr = {
                     sat.state.r.x - deb_obj->state.r.x,
                     sat.state.r.y - deb_obj->state.r.y,
@@ -186,44 +185,33 @@ std::vector<CDMWarning> run_conjunction_assessment(
                     sat.state.v.z - deb_obj->state.v.z
                 };
                 
-                // Time to closest approach: t = - (dr · dv) / |dv|²
                 double dr_dot_dv = dr.x*dv.x + dr.y*dv.y + dr.z*dv.z;
                 double dv_sq = dv.x*dv.x + dv.y*dv.y + dv.z*dv.z;
                 
-                sat_state = sat_next;
-                deb_state = deb_next;
-            }
-            
-            // Check if this is a conjunction (< threshold)
-            if (min_distance < distance_threshold_km) {
-                CDMWarning warning;
-                warning.satellite_id = sat.id;
-                warning.debris_id = candidate.debris_id;
-                warning.tca_seconds_from_now = tca;
-                warning.miss_distance_km = min_distance;
+                if (dv_sq < 1e-12) continue;
                 
                 double tca = -dr_dot_dv / dv_sq;
                 
-                // Skip if TCA is outside lookahead window
                 if (tca < 0 || tca > lookahead_seconds) continue;
                 
-                // Calculate miss distance at TCA
                 Vec3 dr_tca = {
                     dr.x + dv.x * tca,
                     dr.y + dv.y * tca,
                     dr.z + dv.z * tca
                 };
-                double miss_distance = sqrt(dr_tca.x*dr_tca.x + dr_tca.y*dr_tca.y + dr_tca.z*dr_tca.z);
+                double miss_distance = sqrt(
+                    dr_tca.x*dr_tca.x + 
+                    dr_tca.y*dr_tca.y + 
+                    dr_tca.z*dr_tca.z
+                );
                 
-                // Check if conjunction (< 5 km threshold per Section 6.3)
-                if (miss_distance < 5.0) {
+                if (miss_distance < distance_threshold_km) {
                     CDMWarning warning;
                     warning.satellite_id = sat.id;
                     warning.debris_id = candidate.debris_id;
                     warning.tca_seconds_from_now = tca;
                     warning.miss_distance_km = miss_distance;
                     warning.relative_velocity = dv;
-                    
                     warnings.push_back(warning);
                 }
             }
