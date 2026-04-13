@@ -399,18 +399,20 @@ class StateManager:
         if debris_objects:
             try:
                 updated_debris = physics_engine.propagate(debris_objects, dt_seconds)
-                for updated in updated_debris:
-                    deb_id = updated["id"]
-                    if deb_id in self.debris:
-                        deb = self.debris[deb_id]
-                        lat, lon, alt = self._eci_to_latlon(updated["r"])
-                        deb.lat = lat
-                        deb.lon = lon
-                        deb.alt_km = alt
             except Exception as e:
                 # Fallback: simple longitude drift
                 for deb in self.debris.values():
                     deb.lon = round(((deb.lon + 0.04 + 180) % 360) - 180, 3)
+                updated_debris = []
+            
+            for updated in updated_debris:
+                deb_id = updated["id"]
+                if deb_id in self.debris:
+                    deb = self.debris[deb_id]
+                    lat, lon, alt = self._eci_to_latlon(updated["r"])
+                    deb.lat = lat
+                    deb.lon = lon
+                    deb.alt_km = alt
 
         # Check for EOL satellites (< 5% fuel) and trigger graveyard
         self._check_eol_management()
