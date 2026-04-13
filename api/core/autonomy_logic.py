@@ -333,7 +333,10 @@ class AutonomyManager:
         )
 
         # ── Update status ─────────────────────────────────────────────────
-        sat['status'] = SatelliteStatus.EVADING
+        if isinstance(sat, dict):
+            sat['status'] = SatelliteStatus.EVADING
+        else:
+            sat.status = SatelliteStatus.EVADING
         self._cooldown_tracker[sat_id] = current_time
 
         # ── Build action record ───────────────────────────────────────────
@@ -373,10 +376,16 @@ class AutonomyManager:
                     return result
 
         # ── Python fallback: RTN-frame evasion ────────────────────────────
-        r = satellite.get('r', {})
-        v = satellite.get('v', {})
-        fuel_kg = satellite.get('fuelKg', 50.0)
-        mass_kg = satellite.get('currentMass', 500.0)
+        if isinstance(satellite, dict):
+            r = satellite.get('r', {})
+            v = satellite.get('v', {})
+            fuel_kg = satellite.get('fuelKg', satellite.get('fuel_kg', 50.0))
+            mass_kg = satellite.get('currentMass', 500.0)
+        else:
+            r = satellite.r if hasattr(satellite, 'r') else {}
+            v = satellite.v if hasattr(satellite, 'v') else {}
+            fuel_kg = satellite.fuel_kg if hasattr(satellite, 'fuel_kg') else 50.0
+            mass_kg = 500.0 + fuel_kg
 
         if not r or not v:
             return None
@@ -475,11 +484,18 @@ class AutonomyManager:
         """Check for satellites below EOL fuel threshold."""
         actions = []
         for sat_id, sat in satellites.items():
-            fuel = sat.get('fuelKg', 50.0)
-            status = sat.get('status', SatelliteStatus.NOMINAL)
+            if isinstance(sat, dict):
+                fuel = sat.get('fuelKg', sat.get('fuel_kg', 50.0))
+                status = sat.get('status', SatelliteStatus.NOMINAL)
+            else:
+                fuel = getattr(sat, 'fuel_kg', 50.0)
+                status = getattr(sat, 'status', SatelliteStatus.NOMINAL)
 
             if fuel <= EOL_FUEL_KG and status != SatelliteStatus.EOL:
-                sat['status'] = SatelliteStatus.EOL
+                if isinstance(sat, dict):
+                    sat['status'] = SatelliteStatus.EOL
+                else:
+                    sat.status = SatelliteStatus.EOL
                 print(f"[AUTONOMY] {sat_id} fuel critical ({fuel:.3f} kg) → EOL")
 
                 actions.append({
@@ -506,9 +522,12 @@ class AutonomyManager:
 
             if status == SatelliteStatus.EVADING:
                 # Check if evasion burn has been executed
-                evasion_executed = sat.get('_evasion_executed', False)
+                evasion_executed = sat.get('_evasion_executed', False) if isinstance(sat, dict) else getattr(sat, '_evasion_executed', False)
                 if evasion_executed:
-                    sat['status'] = SatelliteStatus.RECOVERING
+                    if isinstance(sat, dict):
+                        sat['status'] = SatelliteStatus.RECOVERING
+                    else:
+                        sat.status = SatelliteStatus.RECOVERING
                     actions.append({
                         'type': 'STATUS_TRANSITION',
                         'satellite_id': sat_id,
@@ -519,9 +538,12 @@ class AutonomyManager:
 
             elif status == SatelliteStatus.RECOVERING:
                 # Check if recovery is complete (no pending burns)
-                recovery_complete = sat.get('_recovery_complete', False)
+                recovery_complete = sat.get('_recovery_complete', False) if isinstance(sat, dict) else getattr(sat, '_recovery_complete', False)
                 if recovery_complete:
-                    sat['status'] = SatelliteStatus.NOMINAL
+                    if isinstance(sat, dict):
+                        sat['status'] = SatelliteStatus.NOMINAL
+                    else:
+                        sat.status = SatelliteStatus.NOMINAL
                     actions.append({
                         'type': 'STATUS_TRANSITION',
                         'satellite_id': sat_id,
