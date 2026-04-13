@@ -313,10 +313,11 @@ class AutonomyManager:
         if not sat:
             return None
 
-        miss_km = cdm['missDistance']
-        time_to_tca = cdm['_time_to_tca']
+        miss_km = cdm['missDistance'] if isinstance(cdm, dict) else cdm.missDistance
+        time_to_tca = cdm.get('_time_to_tca', 3600) if isinstance(cdm, dict) else getattr(cdm, '_time_to_tca', 3600)
 
-        print(f"[AUTONOMY] CRITICAL CDM: {sat_id} vs {cdm.get('debrisId', '?')} | "
+        debris_id = cdm.get('debrisId', '?') if isinstance(cdm, dict) else getattr(cdm, 'debrisId', '?')
+        print(f"[AUTONOMY] CRITICAL CDM: {sat_id} vs {debris_id} | "
               f"miss={miss_km:.3f}km | TCA=T+{time_to_tca/3600:.1f}h")
 
         # ── Plan evasion burn ─────────────────────────────────────────────
@@ -339,7 +340,7 @@ class AutonomyManager:
         action = {
             'type': 'EVASION',
             'satellite_id': sat_id,
-            'debris_id': cdm.get('debrisId'),
+            'debris_id': cdm.get('debrisId') if isinstance(cdm, dict) else getattr(cdm, 'debrisId', None),
             'severity': CDMSeverity.CRITICAL,
             'miss_distance_km': miss_km,
             'evasion': evasion_result,
