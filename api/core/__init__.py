@@ -1,14 +1,15 @@
-# api/core/__init__.py
-"""ACM Core — Python interface to the physics engine and autonomy logic."""
+"""
+AutoCM Core Physics & Analytics Engine
+"""
 
-from ..engine_wrapper import PhysicsEngine, engine
-from .autonomy_logic import AutonomyManager, classify_cdm, CDMSeverity, SatelliteStatus
+try:
+    from .engine_wrapper import *
+except Exception:
+    pass
 
-__all__ = [
-    'PhysicsEngine',
-    'engine',
-    'AutonomyManager',
-    'classify_cdm',
-    'CDMSeverity',
-    'SatelliteStatus',
-]
+try:
+    from .autonomy_logic import AutonomyManager
+except Exception:
+    pass
+
+__version__ = "0.1.0"
