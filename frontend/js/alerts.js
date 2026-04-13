@@ -43,30 +43,53 @@
   // ── Render ─────────────────────────────────────────────────────────────────
   function _renderAlerts(alerts) {
     const list = document.getElementById('alert-list');
-    if (!list) return;
+    const miniList = document.getElementById('alert-list-mini');
+    
+    if (!list && !miniList) return;
 
     alerts.forEach(alert => {
-      const el = document.createElement('div');
-      el.className = `alert-item alert-${alert.severity.toLowerCase()}`;
-      el.dataset.id = alert.id;
-
-      const time = new Date(alert.timestamp).toISOString().slice(11, 19);
-      el.innerHTML = `
-        <span class="alert-badge badge-${alert.severity.toLowerCase()}">${alert.severity[0]}</span>
-        <span class="alert-msg">${alert.message}</span>
-        <span class="alert-time">${time}Z</span>
-      `;
-
-      // Prepend newest on top with animation
-      list.insertBefore(el, list.firstChild);
-      if (window.gsap) {
-        gsap.from(el, { x: -20, opacity: 0, duration: 0.3, ease: 'power2.out' });
+      // Render to main list
+      if (list) {
+        _renderAlertToList(list, alert, false);
+      }
+      
+      // Render to mini list (projection mode)
+      if (miniList) {
+        _renderAlertToList(miniList, alert, true);
       }
     });
 
     // Trim old entries beyond 100
-    while (list.children.length > 100) {
-      list.removeChild(list.lastChild);
+    if (list && list.children.length > 100) {
+      while (list.children.length > 100) {
+        list.removeChild(list.lastChild);
+      }
+    }
+    
+    // Trim mini list to 10 entries
+    if (miniList && miniList.children.length > 10) {
+      while (miniList.children.length > 10) {
+        miniList.removeChild(miniList.lastChild);
+      }
+    }
+  }
+  
+  function _renderAlertToList(list, alert, isMini) {
+    const el = document.createElement('div');
+    el.className = `alert-item alert-${alert.severity.toLowerCase()}`;
+    el.dataset.id = alert.id;
+
+    const time = new Date(alert.timestamp).toISOString().slice(11, 19);
+    el.innerHTML = `
+      <span class="alert-badge badge-${alert.severity.toLowerCase()}">${alert.severity[0]}</span>
+      <span class="alert-msg">${alert.message}</span>
+      <span class="alert-time">${time}Z</span>
+    `;
+
+    // Prepend newest on top with animation
+    list.insertBefore(el, list.firstChild);
+    if (window.gsap && !isMini) {
+      gsap.from(el, { x: -20, opacity: 0, duration: 0.3, ease: 'power2.out' });
     }
   }
 

@@ -4,6 +4,7 @@
 
 const FuelPanel = (() => {
   let container = null;
+  let miniContainer = null;
   let isInitialized = false;
   const INITIAL_FUEL = 50.0; // kg
 
@@ -11,16 +12,29 @@ const FuelPanel = (() => {
     if (isInitialized) return;
     isInitialized = true;
     container = document.getElementById('fuel-list');
+    miniContainer = document.getElementById('fuel-list-mini');
   }
 
   function update(satellites) {
-    if (!container) return;
+    // Update main fuel panel
+    if (container) {
+      updateContainer(container, satellites, false);
+    }
+    
+    // Update mini fuel panel for projection mode
+    if (miniContainer) {
+      updateContainer(miniContainer, satellites, true);
+    }
+  }
+
+  function updateContainer(targetContainer, satellites, isMini) {
+    if (!targetContainer) return;
 
     // Sort by fuel (lowest first)
     const sorted = [...satellites].sort((a, b) => a.fuel_kg - b.fuel_kg);
 
     // D3 data join for smooth reordering
-    const rows = d3.select(container)
+    const rows = d3.select(targetContainer)
       .selectAll('.fuel-row')
       .data(sorted, d => d.id);
 
@@ -91,13 +105,15 @@ const FuelPanel = (() => {
       });
 
     // Smooth ordering transition using GSAP
-    merged.each(function(d, i) {
-      gsap.to(this, {
-        y: 0,
-        duration: 0.3,
-        ease: 'power2.out',
+    if (!isMini) {
+      merged.each(function(d, i) {
+        gsap.to(this, {
+          y: 0,
+          duration: 0.3,
+          ease: 'power2.out',
+        });
       });
-    });
+    }
 
     // Exit
     rows.exit()
