@@ -310,6 +310,15 @@ class AutonomyManager:
         """
         actions = []
 
+        # Step 0: Global multi-objective optimization
+        optimization_result = optimize_fleet_maneuvers(satellites, cdms, current_time)
+        
+        # Log optimization metrics for monitoring
+        fleet_metrics = optimization_result['fleet_metrics']
+        print(f"[OPTIMIZATION] Fleet metrics - Fuel: {fleet_metrics['total_fuel_remaining_kg']:.1f}kg, "
+              f"Critical CDMs: {fleet_metrics['total_critical_cdms']}, "
+              f"Uptime: {fleet_metrics['average_uptime']:.2%}")
+
         # Step 1: Classify and filter CDMs
         actionable = self._filter_actionable_cdms(cdms, satellites, current_time)
 

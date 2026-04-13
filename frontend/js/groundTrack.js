@@ -41,7 +41,7 @@ const GroundTrack = (() => {
   }
 
   function resize() {
-    if (!svg) return;
+    if (!svg || !projection) return;
     const container = document.getElementById('groundtrack-svg-container');
     if (!container) return;
 
