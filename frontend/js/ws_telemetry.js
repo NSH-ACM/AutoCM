@@ -17,9 +17,7 @@ const WSTelemetry = (() => {
   function connect(options = {}) {
     const host = options.host || window.location.host;
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    // Try FastAPI WebSocket on port 8001
-    const wsHost = host.includes(':') ? host.replace(/:\d+/, ':8001') : host + ':8001';
-    const url = `${protocol}//${wsHost}/ws/telemetry`;
+    const url = `${protocol}//${host}/ws/telemetry`;
 
     console.log(`[WS] Connecting to ${url}...`);
 
