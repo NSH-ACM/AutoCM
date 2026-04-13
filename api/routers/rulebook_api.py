@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timezone
 
-from ..state_manager import state
+from ..state_manager import state, StateManager
 
 router = APIRouter(tags=["Rulebook API"])
 
@@ -58,7 +58,7 @@ async def post_telemetry(payload: TelemetryPayload):
                 "id": obj.id,
                 "type": obj.type,
                 "state": {
-                    "t": state.parse_iso_time(payload.timestamp),
+                    "t": StateManager.parse_iso_time(payload.timestamp),
                     "r": obj.r,
                     "v": obj.v
                 }
