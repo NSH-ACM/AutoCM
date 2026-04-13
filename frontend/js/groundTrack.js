@@ -45,7 +45,10 @@ const GroundTrack = (() => {
     const container = document.getElementById('groundtrack-svg-container');
     if (!container) return;
 
-    const rect = container.getBoundingClientRect();
+    const parent = container.parentElement;
+    if (!parent) return;
+
+    const rect = parent.getBoundingClientRect();
     width = rect.width;
     height = rect.height;
 
@@ -53,7 +56,10 @@ const GroundTrack = (() => {
       .scale(width / 2 / Math.PI)
       .translate([width / 2, height / 2]);
 
-    svg.attr('width', width).attr('height', height);
+    svg
+      .attr('width', width)
+      .attr('height', height);
+
     g.selectAll('*').remove();
     drawStaticElements();
   }

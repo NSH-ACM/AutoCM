@@ -465,7 +465,7 @@ const Globe = (() => {
     const menu = document.getElementById('context-menu');
     if (!menu) return;
 
-    const container = document.getElementById('globe-panel');
+    const container = document.getElementById('map-panel');
     const bounds = container?.getBoundingClientRect() || { left: 0, top: 0 };
 
     menu.style.left = (bounds.left + position.x) + 'px';

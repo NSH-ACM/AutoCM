@@ -30,6 +30,7 @@
 
     // Init all modules (after split layout settles)
     setTimeout(() => {
+      GroundTrack.init();
       Globe.init();
       Bullseye.init();
       FuelPanel.init();
@@ -329,7 +330,7 @@
     }
 
     // Data flash animation on panels
-    flashPanel('globe-panel');
+    flashPanel('map-panel');
   }
 
   // ══════════════════════════════════════════════════════════════════════════

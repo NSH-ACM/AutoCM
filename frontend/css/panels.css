@@ -1261,148 +1261,100 @@
 
 /* Side panel */
 .side-panel {
-  width: 200px;
+  width: 160px;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
-  border-left: 1px solid rgba(74, 158, 255, 0.1);
+  background: rgba(15, 23, 42, 0.8);
+  border-left: 1px solid rgba(74, 158, 255, 0.15);
 }
 
 .side-panel-header {
-  padding: 12px 16px;
-  border-bottom: 1px solid rgba(26, 42, 62, 0.6);
-  flex-shrink: 0;
-}
-
-.side-panel-title {
-  font-size: 10px;
-  letter-spacing: 2px;
-  color: var(--text-secondary);
-  text-transform: uppercase;
+  padding: 16px;
+  border-bottom: 1px solid rgba(74, 158, 255, 0.1);
+  font-size: 11px;
   font-weight: 600;
+  letter-spacing: 1px;
+  color: var(--text-secondary);
 }
 
 .side-panel-content {
   flex: 1;
-  padding: 12px;
+  padding: 8px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  overflow-y: auto;
+  gap: 4px;
 }
 
-.side-panel-footer {
-  padding: 12px 16px;
-  border-top: 1px solid rgba(26, 42, 62, 0.6);
-  flex-shrink: 0;
-}
-
-/* Mode buttons */
-.mode-btn {
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid rgba(26, 42, 62, 0.6);
+.side-btn {
+  background: transparent;
+  border: none;
   color: var(--text-primary);
-  padding: 12px 16px;
+  padding: 10px 12px;
+  border-radius: 4px;
   cursor: pointer;
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 6px;
-  text-align: center;
-  border-radius: 6px;
-  transition: all 0.25s ease;
-  position: relative;
-  overflow: hidden;
+  gap: 10px;
+  transition: all 0.15s ease;
+  font-size: 13px;
 }
 
-.mode-btn::before {
-  content: '';
+.side-btn:hover {
+  background: rgba(74, 158, 255, 0.1);
+}
+
+.side-btn.active {
+  background: rgba(74, 158, 255, 0.2);
+  color: var(--accent-blue);
+}
+
+.side-btn i {
+  width: 16px;
+  height: 16px;
+}
+
+/* Map toggle */
+.map-toggle {
   position: absolute;
-  inset: 0;
-  background: linear-gradient(135deg, rgba(74, 158, 255, 0.1), transparent);
-  opacity: 0;
-  transition: opacity 0.25s ease;
-}
-
-.mode-btn:hover {
-  background: rgba(74, 158, 255, 0.05);
-  border-color: rgba(74, 158, 255, 0.2);
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(74, 158, 255, 0.08);
-}
-
-.mode-btn:hover::before {
-  opacity: 1;
-}
-
-.mode-btn.active {
-  background: rgba(74, 158, 255, 0.12);
-  border-color: var(--blue);
-  box-shadow: 0 0 20px rgba(74, 158, 255, 0.15);
-}
-
-.mode-btn.active::before {
-  opacity: 1;
-}
-
-.mode-btn i {
-  width: 24px;
-  height: 24px;
-  color: var(--text-secondary);
-  transition: color 0.25s ease;
-  position: relative;
-  z-index: 1;
-}
-
-.mode-btn:hover i,
-.mode-btn.active i {
-  color: var(--blue);
-}
-
-.mode-btn span {
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 1px;
-  position: relative;
-  z-index: 1;
-}
-
-.mode-desc {
-  font-size: 9px;
-  color: var(--text-dim);
-  letter-spacing: 0.5px;
-  position: relative;
-  z-index: 1;
-}
-
-/* Quick stats in side panel footer */
-.quick-stats {
+  top: 12px;
+  right: 12px;
   display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.quick-stat-item {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 6px 8px;
-  background: rgba(255, 255, 255, 0.015);
-  border: 1px solid rgba(26, 42, 62, 0.5);
+  gap: 4px;
+  background: rgba(15, 23, 42, 0.9);
   border-radius: 4px;
+  padding: 4px;
+  border: 1px solid rgba(74, 158, 255, 0.2);
 }
 
-.quick-stat-item .label {
-  font-size: 8px;
-  letter-spacing: 1px;
-  color: var(--text-dim);
+.map-toggle-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  padding: 6px 12px;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 500;
+  transition: all 0.15s ease;
 }
 
-.quick-stat-item .value {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--blue);
-  letter-spacing: 0.5px;
+.map-toggle-btn:hover {
+  color: var(--text-primary);
+}
+
+.map-toggle-btn.active {
+  background: rgba(74, 158, 255, 0.2);
+  color: var(--accent-blue);
+}
+
+#map-panel {
+  position: relative;
+}
+
+#map-panel .panel-content {
+  height: 100%;
+  padding: 0;
 }
 
 /* Mini panels for projection mode */

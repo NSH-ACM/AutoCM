@@ -106,16 +106,23 @@
         <!-- UPPER ROW -->
         <div id="upper-row">
 
-          <!-- 3D Globe -->
-          <div id="globe-panel" class="panel glass-panel">
+          <!-- Map View (3D Globe or 2D Mercator) -->
+          <div id="map-panel" class="panel glass-panel">
             <div class="panel-content">
               <div id="cesium-container"></div>
+              <div id="groundtrack-svg-container" style="display: none;">
+                <svg id="groundtrack-svg"></svg>
+              </div>
             </div>
             <div class="globe-tooltip" id="globe-tooltip">
               <div class="sat-id"></div>
               <div class="sat-field"><span class="label">STATUS</span><span class="value"></span></div>
               <div class="sat-field"><span class="label">FUEL</span><span class="value"></span></div>
               <div class="sat-field"><span class="label">LAST BURN</span><span class="value"></span></div>
+            </div>
+            <div class="map-toggle">
+              <button id="toggle-3d" class="map-toggle-btn active">3D</button>
+              <button id="toggle-2d" class="map-toggle-btn">2D</button>
             </div>
           </div>
 
@@ -262,29 +269,17 @@
       </div><!-- /charts-view -->
 
       <!-- RIGHT SIDE PANEL -->
-      <aside id="side-panel" class="side-panel glass-panel">
-        <div class="side-panel-header">
-          <span class="side-panel-title">VIEW MODE</span>
-        </div>
+      <aside id="side-panel" class="side-panel">
+        <div class="side-panel-header">Views</div>
         <div class="side-panel-content">
-          <button id="mode-projection" class="mode-btn active">
+          <button id="mode-projection" class="side-btn active">
             <i data-lucide="globe"></i>
-            <span>PROJECTION</span>
-            <div class="mode-desc">3D Globe & Bullseye</div>
+            <span>Projection</span>
           </button>
-          <button id="mode-charts" class="mode-btn">
+          <button id="mode-charts" class="side-btn">
             <i data-lucide="bar-chart-2"></i>
-            <span>CHARTS</span>
-            <div class="mode-desc">Fuel, Timeline & Analytics</div>
+            <span>Charts</span>
           </button>
-        </div>
-        <div class="side-panel-footer">
-          <div class="quick-stats">
-            <div class="quick-stat-item">
-              <span class="label">ACTIVE MODE</span>
-              <span class="value" id="current-mode-display">PROJECTION</span>
-            </div>
-          </div>
         </div>
       </aside>
 
