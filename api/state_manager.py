@@ -787,13 +787,17 @@ class StateManager:
             if sat.status == "EOL":
                 continue
 
-            # Initialize nominal slot on first encounter
+            # Initialize nominal slot on first encounter — frozen at first position, never updated
             if sat_id not in self.nominal_slots:
                 self.nominal_slots[sat_id] = {
                     "lat": sat.lat,
                     "lon": sat.lon,
                     "alt_km": sat.alt_km
                 }
+                continue
+            
+            # Skip satellites that haven't moved yet (alt_km is 0.0 default)
+            if sat.alt_km < 1.0:
                 continue
 
             slot = self.nominal_slots[sat_id]
