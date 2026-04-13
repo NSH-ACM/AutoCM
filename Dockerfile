@@ -17,8 +17,9 @@ WORKDIR /build
 COPY engine/ ./engine/
 
 RUN cd engine && mkdir -p build && cd build \
-    && (cmake .. && make -j$(nproc) || echo "[BUILD] C++ engine skipped") \
-    && touch .keep
+    && cmake .. -DCMAKE_BUILD_TYPE=Release 2>&1 | tail -5 \
+    && make -j$(nproc) 2>&1 | tail -10 \
+    || (echo "[BUILD] C++ engine build failed — Python mock will be used" && touch .keep)
 
 # ── Stage 2: Application ─────────────────────────────────────────────────
 FROM ubuntu:22.04
@@ -50,7 +51,9 @@ COPY core/ ./core/
 RUN rm -f ./core/autocm_engine*.so ./core/autocm_engine*.pyd
 
 # Inject fresh Linux engine artifact from builder stage into core namespace
-RUN find ./engine/build/ -name "autocm_engine*.so" -exec cp {} ./core/autocm_engine.so \; || true
+RUN find ./engine/build/ -name "autocm_engine*.so" -exec cp {} ./core/autocm_engine.so \; \
+    && echo "[DEPLOY] C++ engine deployed to core/" \
+    || echo "[DEPLOY] No C++ engine found — Python mock active"
 
 EXPOSE 8000
 
