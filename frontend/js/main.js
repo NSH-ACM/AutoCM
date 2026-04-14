@@ -122,9 +122,32 @@
   // SPLIT.JS — Resizable Panels
   // ══════════════════════════════════════════════════════════════════════════
   function initSplitPanels() {
-    // Projection view is now full-page - no Split.js needed
-    // Charts view uses CSS grid - no Split.js needed
-    console.log('[Split] Disabled - projection is full-page, charts uses CSS grid');
+    // Top-level vertical split linking the three rows
+    Split(['#chart-row-1', '#chart-row-2', '#chart-row-3'], {
+      direction: 'vertical',
+      sizes: [33, 33, 34],
+      minSize: 100,
+      gutterSize: 4,
+      onDragEnd: handleResize
+    });
+
+    // Horizontal split for row 1
+    Split(['#bullseye-panel', '#fuel-panel'], {
+      direction: 'horizontal',
+      sizes: [50, 50],
+      minSize: 150,
+      gutterSize: 4,
+      onDragEnd: handleResize
+    });
+
+    // Horizontal split for row 2
+    Split(['#gantt-panel', '#alerts-panel'], {
+      direction: 'horizontal',
+      sizes: [50, 50],
+      minSize: 150,
+      gutterSize: 4,
+      onDragEnd: handleResize
+    });
   }
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -234,10 +257,14 @@
       Globe.updateConjunctions(cdmCache);
     }
     if (typeof GroundTrack !== 'undefined') {
-      GroundTrack.update(data.satellites);
+      GroundTrack.update(data.satellites, data.timestamp);
+      GroundTrack.updateDebris(data.debris_cloud);
     }
     
     if (typeof FuelPanel !== 'undefined') FuelPanel.update(data.satellites);
+    if (typeof Bullseye !== 'undefined' && Bullseye.setSatellitePositions) {
+      Bullseye.setSatellitePositions(data.satellites);
+    }
     updateTopbarStats(data);
     
     if (typeof Bullseye !== 'undefined') Bullseye.update(cdmCache, simTimestamp);
@@ -246,6 +273,7 @@
     if (typeof Telemetry !== 'undefined') {
       Telemetry.updateHealth(latency, data.timestamp);
       Telemetry.updateCDMList(cdmCache, simTimestamp);
+      Telemetry.updateFullMetrics(data.satellites, cdmCache, maneuverCache);
     }
 
     // Engine status is now updated during pollConstellationStats

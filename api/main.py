@@ -33,10 +33,10 @@ from .routers.auth import router as auth_router
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Startup: load catalog and begin simulation loop."""
-    print("═" * 70)
-    print("  AUTONOMOUS CONSTELLATION MANAGER — FastAPI Backend")
+    print("=" * 70)
+    print("  AUTONOMOUS CONSTELLATION MANAGER - FastAPI Backend")
     print("  National Space Hackathon 2026")
-    print("═" * 70)
+    print("=" * 70)
 
     # Load satellite & debris catalog
     catalog_path = os.path.join(
@@ -49,7 +49,7 @@ async def lifespan(app: FastAPI):
     sim_task = asyncio.create_task(_simulation_loop())
     ws_task = asyncio.create_task(_websocket_broadcast_loop())
 
-    print(f"[API] Server ready — {len(state.satellites)} satellites, "
+    print(f"[API] Server ready - {len(state.satellites)} satellites, "
           f"{len(state.debris)} debris tracked")
     print(f"[API] Dashboard: http://localhost:8000")
     print(f"[API] API Docs:  http://localhost:8000/docs")

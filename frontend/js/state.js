@@ -6,6 +6,7 @@ const AppState = (() => {
   // ── State ────────────────────────────────────────────────────────────────
   const state = {
     timestamp: null,
+    simTime: null,       // alias — same as timestamp
     satellites: [],
     debrisCloud: [],
     cdms: [],
@@ -35,6 +36,7 @@ const AppState = (() => {
   // ── Mutators ─────────────────────────────────────────────────────────────
   function updateSnapshot(data) {
     state.timestamp = data.timestamp;
+    state.simTime   = data.timestamp;   // alias used by GroundTrack/Bullseye
     state.satellites = data.satellites || [];
     state.debrisCloud = data.debris_cloud || [];
     state.lastSnapshotTime = new Date();

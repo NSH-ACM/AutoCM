@@ -294,6 +294,7 @@ const Globe = (() => {
 
   // ── Update Satellites ────────────────────────────────────────────────────
   function updateSatellites(satellites) {
+    if (!isInitialized) return;
     satPointCollection.removeAll();
     orbitLines.removeAll();
     satIdMap = {};
@@ -357,6 +358,7 @@ const Globe = (() => {
   // ── Update Debris Cloud — PERFORMANCE FIX ────────────────────────────────
   // Only show a subset of debris (1 in 5) to reduce GPU load
   function updateDebris(debrisCloud) {
+    if (!isInitialized) return;
     const SUBSAMPLE = 5; // show every 5th debris particle
     const displayLen = Math.ceil(debrisCloud.length / SUBSAMPLE);
 
@@ -384,6 +386,7 @@ const Globe = (() => {
 
   // ── Update Conjunction Lines ─────────────────────────────────────────────
   function updateConjunctions(cdms) {
+    if (!isInitialized) return;
     conjunctionLines.removeAll();
 
     // Only draw lines for top 10 most critical CDMs

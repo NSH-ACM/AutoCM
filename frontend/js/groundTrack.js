@@ -1,21 +1,31 @@
 /* ═══════════════════════════════════════════════════════════════════════════
-   ORBITAL INSIGHT — 2D Mercator Ground Track Map (D3.js)
-   Implements Section 6.2 requirement for Mercator projection visualization
+   ORBITAL INSIGHT — 2D Mercator Ground Track Map (D3.js + Canvas overlay)
+   Section 6.2 — Ground Track Map (Mercator Projection)
+   • Real GeoJSON world atlas (TopoJSON)
+   • Canvas overlay for 10,000+ debris objects at 60 FPS
+   • Historical trail (last 90 min) + dashed predicted trajectory (next 90 min)
+   • Terminator Line (day/night boundary) with correct winding
+   • EVADING satellite pulsing marker
    ═══════════════════════════════════════════════════════════════════════════ */
 
 const GroundTrack = (() => {
   let svg = null;
   let g = null;
+  let canvas = null;
+  let ctx = null;
   let width = 0;
   let height = 0;
   let isInitialized = false;
-  
-  // Mercator projection parameters
-  const projection = d3.geoMercator()
-    .scale(width / 2 / Math.PI)
-    .translate([width / 2, height / 2]);
+  let worldLoaded = false;
+  let rafId = null;
 
-  // ── Initialize ───────────────────────────────────────────────────────────
+  // Current debris snapshot for canvas render loop
+  let _debrisData = [];
+
+  // D3 Mercator projection
+  const projection = d3.geoMercator();
+
+  // ── Initialize ────────────────────────────────────────────────────────────
   function init() {
     if (isInitialized) return;
     isInitialized = true;
@@ -23,254 +33,421 @@ const GroundTrack = (() => {
     const container = document.getElementById('groundtrack-svg-container');
     if (!container) return;
 
-    const rect = container.getBoundingClientRect();
-    width = rect.width;
-    height = rect.height;
+    _measure(container);
 
-    projection
-      .scale(width / 2 / Math.PI)
-      .translate([width / 2, height / 2]);
+    // Canvas layer (underneath SVG for debris)
+    canvas = document.getElementById('debris-canvas');
+    if (canvas) {
+      canvas.width  = width;
+      canvas.height = height;
+      ctx = canvas.getContext('2d');
+    }
 
+    // SVG setup
     svg = d3.select('#groundtrack-svg')
       .attr('width', width)
-      .attr('height', height);
+      .attr('height', height)
+      .style('position', 'absolute')
+      .style('top', '0')
+      .style('left', '0');
 
     g = svg.append('g');
 
-    drawStaticElements();
+    _drawBackground();
+    _drawGraticule();
+    _loadWorld();     // async — draws countries when ready
+    _drawStaticLines();
+
+    // Start canvas render loop
+    _scheduleDebrisFrame();
   }
 
-  function resize() {
-    if (!svg || !projection) return;
-    const container = document.getElementById('groundtrack-svg-container');
-    if (!container) return;
-
-    const parent = container.parentElement;
-    if (!parent) return;
-
-    const rect = parent.getBoundingClientRect();
-    width = rect.width;
-    height = rect.height;
-
+  function _measure(container) {
+    const rect = container.getBoundingClientRect();
+    width  = Math.max(rect.width,  200);
+    height = Math.max(rect.height, 100);
     projection
       .scale(width / 2 / Math.PI)
-      .translate([width / 2, height / 2]);
-
-    svg
-      .attr('width', width)
-      .attr('height', height);
-
-    g.selectAll('*').remove();
-    drawStaticElements();
+      .translate([width / 2, height / 2])
+      .clipExtent([[0, 0], [width, height]]);
   }
 
-  // ── Static Elements ──────────────────────────────────────────────────────
-  function drawStaticElements() {
-    // Background
+  // ── World Atlas (TopoJSON) ────────────────────────────────────────────────
+  async function _loadWorld() {
+    try {
+      const topoData = await fetch(
+        'https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json'
+      ).then(r => r.json());
+
+      const countries = window.topojson
+        ? topojson.feature(topoData, topoData.objects.countries)
+        : null;
+
+      if (!countries) {
+        _drawFallbackContinents();
+        return;
+      }
+
+      const path = d3.geoPath().projection(projection);
+
+      // Ocean background
+      g.append('path')
+        .datum({ type: 'Sphere' })
+        .attr('d', path)
+        .attr('fill', 'rgba(10,20,40,0.6)')
+        .attr('stroke', 'none');
+
+      // Country fills
+      g.append('path')
+        .datum(countries)
+        .attr('d', path)
+        .attr('fill', 'rgba(40,80,140,0.18)')
+        .attr('stroke', '#2a5090')
+        .attr('stroke-width', 0.6)
+        .attr('opacity', 0.85);
+
+      // Country borders
+      const borders = topojson.mesh(topoData, topoData.objects.countries, (a, b) => a !== b);
+      g.append('path')
+        .datum(borders)
+        .attr('d', path)
+        .attr('fill', 'none')
+        .attr('stroke', '#1a3060')
+        .attr('stroke-width', 0.4);
+
+      worldLoaded = true;
+
+      // Terminator placeholder must be above land
+      _ensureTerminatorElement();
+    } catch (e) {
+      console.warn('[GroundTrack] TopoJSON load failed, using fallback:', e.message);
+      _drawFallbackContinents();
+    }
+  }
+
+  function _drawBackground() {
     g.append('rect')
       .attr('width', width)
       .attr('height', height)
-      .attr('fill', '#030508');
+      .attr('fill', '#030810');
+  }
 
-    // Graticule (latitude/longitude grid)
+  function _drawGraticule() {
     const graticule = d3.geoGraticule().step([15, 15]);
+    const path = d3.geoPath().projection(projection);
     g.append('path')
       .datum(graticule())
-      .attr('d', d3.geoPath().projection(projection))
+      .attr('class', 'graticule')
+      .attr('d', path)
       .attr('fill', 'none')
-      .attr('stroke', '#1a2a3e')
+      .attr('stroke', '#0d1f33')
       .attr('stroke-width', 0.5)
-      .attr('opacity', 0.4);
+      .attr('opacity', 0.5);
+  }
 
-    // Simplified world outline (major continents)
-    const worldOutline = [
-      // North America
-      [[-160, 70], [-100, 70], [-60, 50], [-80, 30], [-120, 20], [-125, 50], [-130, 60], [-160, 70]],
-      // South America
-      [[-80, 10], [-35, -5], [-40, -30], [-70, -55], [-80, -10], [-80, 10]],
-      // Europe
-      [[-10, 60], [30, 60], [40, 40], [10, 35], [-5, 40], [-10, 60]],
-      // Africa
-      [[-20, 35], [40, 35], [50, 10], [40, -35], [20, -35], [10, 0], [-20, 35]],
-      // Asia
-      [[40, 70], [140, 70], [150, 30], [100, 10], [60, 20], [40, 35], [40, 70]],
-      // Australia
-      [[110, -20], [155, -20], [150, -40], [115, -35], [110, -20]]
-    ];
-
-    worldOutline.forEach(continent => {
-      g.append('path')
-        .datum({type: 'Polygon', coordinates: [continent]})
-        .attr('d', d3.geoPath().projection(projection))
-        .attr('fill', 'rgba(74, 158, 255, 0.05)')
-        .attr('stroke', '#4a9eff')
-        .attr('stroke-width', 1)
-        .attr('opacity', 0.5);
-    });
+  function _drawStaticLines() {
+    const path = d3.geoPath().projection(projection);
 
     // Equator
     g.append('path')
-      .datum({type: 'LineString', coordinates: [[-180, 0], [180, 0]]})
-      .attr('d', d3.geoPath().projection(projection))
+      .datum({ type: 'LineString', coordinates: [[-180, 0], [0, 0], [180, 0]] })
+      .attr('d', path)
       .attr('fill', 'none')
-      .attr('stroke', '#4a9eff')
-      .attr('stroke-width', 1.5)
-      .attr('opacity', 0.6);
+      .attr('stroke', '#1a4a8a')
+      .attr('stroke-width', 1)
+      .attr('opacity', 0.5);
 
     // Prime Meridian
     g.append('path')
-      .datum({type: 'LineString', coordinates: [[0, -90], [0, 90]]})
-      .attr('d', d3.geoPath().projection(projection))
+      .datum({ type: 'LineString', coordinates: [[0, -85], [0, 85]] })
+      .attr('d', path)
       .attr('fill', 'none')
-      .attr('stroke', '#4a9eff')
-      .attr('stroke-width', 1.5)
-      .attr('opacity', 0.6);
+      .attr('stroke', '#1a4a8a')
+      .attr('stroke-width', 1)
+      .attr('opacity', 0.5);
 
-    // Terminator line placeholder (will be updated dynamically)
-    g.append('path')
-      .attr('id', 'terminator-line')
-      .attr('fill', 'rgba(255, 200, 100, 0.08)')
-      .attr('stroke', 'rgba(255, 200, 100, 0.3)')
-      .attr('stroke-width', 2)
-      .attr('stroke-dasharray', '8,4');
+    // Terminator placeholder (above land, below satellite markers)
+    _ensureTerminatorElement();
   }
 
-  // ── Update Satellites ─────────────────────────────────────────────────────
-  function update(satellites) {
+  function _ensureTerminatorElement() {
+    if (!g.select('#terminator-night').empty()) return;
+    g.append('path').attr('id', 'terminator-night');
+    g.append('path').attr('id', 'terminator-edge');
+  }
+
+  // Fallback if TopoJSON CDN unreachable
+  function _drawFallbackContinents() {
+    const path = d3.geoPath().projection(projection);
+    const continents = [
+      [[-168,71],[-130,71],[-55,47],[-54,24],[-80,8],[-78,-4],[-60,-4],[-35,-6],[-38,-55],[-68,-55],[-80,-10],[-82,8],[-85,15],[-90,16],[-92,19],[-88,16],[-83,10],[-77,8],[-77,9],[-79,8],[-77,4],[-75,0],[-70,-5],[-80,0],[-80,8],[-77,4],[-75,0],[-68,-4],[-52,4],[-50,5],[-30,5],[-15,10],[0,5],[15,5],[30,8],[42,11],[50,12],[55,23],[58,22],[60,22],[77,35],[90,23],[100,5],[103,-1],[110,-5],[115,-8],[130,-14],[135,-18],[145,-20],[155,-25],[150,-40],[145,-38],[138,-35],[114,-30],[115,-25],[112,-20],[110,-5],[100,-2],[98,5],[95,20],[88,22],[80,28],[74,34],[62,23],[56,22],[55,25],[51,24],[44,12],[44,9],[42,12],[42,16],[37,21],[37,22],[32,30],[32,31],[35,33],[36,36],[38,37],[36,37],[28,41],[26,41],[24,38],[22,37],[18,38],[14,36],[10,37],[5,37],[-5,35],[-10,36],[-15,33],[-17,20],[-17,15],[-15,10],[-15,11],[-12,15],[-16,22],[-17,28],[-13,28],[-8,25],[0,20],[10,22],[12,15],[14,8],[14,4],[10,0],[10,-5],[15,-10],[18,-18],[20,-20],[28,-30],[30,-30],[32,-28],[38,-20],[40,-10],[42,-2],[44,8],[44,12]],
+    ];
+    // Only draw the world as a single simplified sphere outline
+    g.append('path')
+      .datum({ type: 'Sphere' })
+      .attr('d', d3.geoPath().projection(projection))
+      .attr('fill', 'rgba(10,25,50,0.5)')
+      .attr('stroke', '#1a3060')
+      .attr('stroke-width', 0.5);
+
+    worldLoaded = true;
+    _ensureTerminatorElement();
+  }
+
+  // ── Terminator Line (Day/Night Boundary) ─────────────────────────────────
+  function _updateTerminator(simTime) {
+    const terminatorNight = g.select('#terminator-night');
+    const terminatorEdge  = g.select('#terminator-edge');
+    if (terminatorNight.empty()) return;
+
+    const now = simTime ? new Date(simTime) : new Date();
+    const path = d3.geoPath().projection(projection);
+
+    // Solar declination (degrees)
+    const startOfYear = new Date(Date.UTC(now.getUTCFullYear(), 0, 1));
+    const dayOfYear = (now - startOfYear) / 86400000;
+    const decl = 23.4397 * Math.sin((2 * Math.PI / 365.25) * (dayOfYear - 80));
+
+    // Sun's sub-solar longitude
+    const utcFrac = (now.getUTCHours() + now.getUTCMinutes() / 60 + now.getUTCSeconds() / 3600) / 24;
+    const sunLon  = (180 - utcFrac * 360 + 360) % 360 - 180;
+
+    // Build terminator polygon — closed on night pole
+    const termPts = [];
+    for (let lon = -180; lon <= 180; lon += 1) {
+      const dLon = (lon - sunLon) * Math.PI / 180;
+      const sinDecl = Math.sin(decl * Math.PI / 180);
+      const cosDecl = Math.cos(decl * Math.PI / 180);
+      // latitude where it transitions from day to night
+      let tLat = Math.atan(-Math.cos(dLon) / Math.tan(decl * Math.PI / 180)) * 180 / Math.PI;
+      tLat = Math.max(-89, Math.min(89, tLat));
+      termPts.push([lon, tLat]);
+    }
+
+    // Close by sweeping to the dark pole
+    const darkPole = decl >= 0 ? -90 : 90;
+    const nightSide = [
+      ...termPts,
+      [180, darkPole],
+      [-180, darkPole],
+      termPts[0],
+    ];
+
+    terminatorNight
+      .datum({ type: 'Polygon', coordinates: [nightSide] })
+      .attr('d', path)
+      .attr('fill', 'rgba(0,0,0,0.42)')
+      .attr('stroke', 'none');
+
+    // Glowing edge line
+    terminatorEdge
+      .datum({ type: 'LineString', coordinates: termPts })
+      .attr('d', path)
+      .attr('fill', 'none')
+      .attr('stroke', 'rgba(255,140,60,0.35)')
+      .attr('stroke-width', 2)
+      .attr('stroke-dasharray', '6,3');
+  }
+
+  // ── Satellite Markers + Trails ────────────────────────────────────────────
+  function update(satellites, simTime) {
     if (!g) return;
 
-    // Remove old elements
-    g.selectAll('.sat-marker').remove();
+    const path = d3.geoPath().projection(projection);
+
+    // Remove previous dynamic elements
     g.selectAll('.sat-trail').remove();
     g.selectAll('.sat-predicted').remove();
+    g.selectAll('.sat-pulse').remove();
+    g.selectAll('.sat-marker').remove();
+    g.selectAll('.sat-label').remove();
 
-    const selectedId = AppState.state.selectedSatelliteId;
+    const selectedId = AppState?.state?.selectedSatelliteId;
 
     satellites.forEach(sat => {
       const isSelected = sat.id === selectedId;
-      
-      // Current position marker
-      g.append('circle')
-        .attr('class', 'sat-marker')
-        .attr('cx', projection([sat.lon, sat.lat])[0])
-        .attr('cy', projection([sat.lon, sat.lat])[1])
-        .attr('r', isSelected ? 6 : 4)
-        .attr('fill', isSelected ? '#4a9eff' : '#2ecc71')
-        .attr('stroke', isSelected ? '#ffffff' : 'none')
-        .attr('stroke-width', 2)
-        .style('cursor', 'pointer')
-        .on('click', (event) => {
-          AppState.selectSatellite(sat.id);
-          Globe.flyToSatelliteById(sat.id);
-        });
+      const isEvading  = sat.status === 'EVADING';
 
-      // Historical trail (90 minutes)
-      const historicalFeature = generateOrbitTrail(sat.lon, sat.lat, -90);
+      // ── Historical trail (90 min) ──
+      const histFeature = _orbitTrail(sat.lon, sat.lat, -90);
       g.append('path')
         .attr('class', 'sat-trail')
-        .datum(historicalFeature)
-        .attr('d', d3.geoPath().projection(projection))
+        .datum(histFeature)
+        .attr('d', path)
         .attr('fill', 'none')
-        .attr('stroke', '#4a9eff')
-        .attr('stroke-width', 1.5)
-        .attr('opacity', 0.6);
+        .attr('stroke', isSelected ? '#4a9eff' : 'rgba(74,158,255,0.3)')
+        .attr('stroke-width', isSelected ? 1.5 : 0.8)
+        .attr('opacity', isSelected ? 0.8 : 0.4);
 
-      // Predicted trajectory (90 minutes) - dashed
-      const predictedFeature = generateOrbitTrail(sat.lon, sat.lat, 90);
+      // ── Predicted trajectory (90 min) — dashed ──
+      const predFeature = _orbitTrail(sat.lon, sat.lat, 90);
       g.append('path')
         .attr('class', 'sat-predicted')
-        .datum(predictedFeature)
-        .attr('d', d3.geoPath().projection(projection))
+        .datum(predFeature)
+        .attr('d', path)
         .attr('fill', 'none')
-        .attr('stroke', '#f39c12')
-        .attr('stroke-width', 1.5)
+        .attr('stroke', isSelected ? '#f39c12' : 'rgba(243,156,18,0.25)')
+        .attr('stroke-width', isSelected ? 1.5 : 0.7)
         .attr('stroke-dasharray', '5,3')
-        .attr('opacity', 0.7);
+        .attr('opacity', isSelected ? 0.85 : 0.35);
+
+      // ── EVADING pulse ring ──
+      if (isEvading || isSelected) {
+        const [cx, cy] = projection([sat.lon, sat.lat]) || [0, 0];
+        g.append('circle')
+          .attr('class', 'sat-pulse')
+          .attr('cx', cx)
+          .attr('cy', cy)
+          .attr('r', isSelected ? 14 : 10)
+          .attr('fill', 'none')
+          .attr('stroke', isEvading ? '#e74c3c' : '#4a9eff')
+          .attr('stroke-width', 1)
+          .attr('opacity', 0.4);
+      }
+
+      // ── Marker ──
+      const [mx, my] = projection([sat.lon, sat.lat]) || [0, 0];
+      const markerColor = sat.status === 'EOL'      ? '#5a5a5a'
+                        : sat.status === 'EVADING'  ? '#e74c3c'
+                        : sat.status === 'RECOVERING' ? '#f39c12'
+                        : isSelected               ? '#ffffff'
+                        : '#2ecc71';
+
+      g.append('circle')
+        .attr('class', 'sat-marker')
+        .attr('cx', mx)
+        .attr('cy', my)
+        .attr('r', isSelected ? 5 : 3.5)
+        .attr('fill', markerColor)
+        .attr('stroke', isSelected ? '#4a9eff' : 'rgba(0,0,0,0.5)')
+        .attr('stroke-width', isSelected ? 1.5 : 0.5)
+        .style('cursor', 'pointer')
+        .on('click', (event) => {
+          event.stopPropagation();
+          if (typeof AppState !== 'undefined') AppState.selectSatellite(sat.id);
+          if (typeof Globe !== 'undefined')    Globe.flyToSatelliteById(sat.id);
+        })
+        .append('title')
+        .text(`${sat.id}\nStatus: ${sat.status}\nFuel: ${sat.fuel_kg?.toFixed(1)} kg\nLat: ${sat.lat?.toFixed(2)}° Lon: ${sat.lon?.toFixed(2)}°`);
+
+      // ── Label for selected satellite ──
+      if (isSelected) {
+        g.append('text')
+          .attr('class', 'sat-label')
+          .attr('x', mx + 8)
+          .attr('y', my - 6)
+          .attr('fill', '#4a9eff')
+          .attr('font-size', '9px')
+          .attr('font-family', 'JetBrains Mono, monospace')
+          .text(sat.id.replace('SAT-', ''));
+      }
     });
 
-    // Update terminator line (simplified - based on time)
-    updateTerminator();
+    // Update terminator
+    _updateTerminator(simTime || AppState?.state?.simTime);
   }
 
-  // ── Generate Orbit Trail Points ───────────────────────────────────────────
-  function generateOrbitTrail(baseLon, baseLat, minutes) {
-    const points = [];
-    const inc = 53.0; // Typical LEO inclination for starlink-like nodes
-    const orbitalPeriod = 95.0; 
-    const numPoints = 60; // Resolution
-    const direction = minutes < 0 ? -1 : 1;
-    const timeSpanSecs = Math.abs(minutes) * 60;
+  // ── Canvas Debris Render Loop ─────────────────────────────────────────────
+  function updateDebris(debrisCloud) {
+    _debrisData = debrisCloud || [];
+  }
 
-    for (let i = 0; i <= numPoints; i++) {
-        const dt = (i / numPoints) * timeSpanSecs * direction;
-        
-        // Simplified orbit model: circular with nodal regression
-        // In v2, this is just for visualization; backend handles the real math.
-        const phase = (dt / (orbitalPeriod * 60)) * 2 * Math.PI;
-        const currentPhase = Math.asin(baseLat / inc);
-        
-        const lat = inc * Math.sin(currentPhase + phase);
-        
-        // Longitudinal advance = orbit motion + earth rotation
-        const earthRot = (-360.0 / 86400.0) * dt;
-        const orbitAdv = (dt / (orbitalPeriod * 60)) * 360.0;
-        
-        let lon = baseLon + orbitAdv + earthRot;
-        lon = ((lon + 180) % 360 + 360) % 360 - 180;
-        
-        points.push([lon, lat]);
+  function _drawDebrisFrame() {
+    if (!ctx || !canvas) { rafId = null; _scheduleDebrisFrame(); return; }
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    const len = _debrisData.length;
+    if (len === 0) { _scheduleDebrisFrame(); return; }
+
+    // Batch render by altitude colour band (greens = lower LEO, blues = higher)
+    // _debrisData format: [id, lat, lon, alt_km]
+    ctx.globalAlpha = 0.55;
+    for (let i = 0; i < len; i++) {
+      const d = _debrisData[i];
+      const lat = d[1], lon = d[2], alt = d[3];
+      const pt  = projection([lon, lat]);
+      if (!pt) continue;
+
+      // Colour by altitude: <450 ~ orange/red, 450–600 ~ yellow, >600 ~ blue
+      let r, g2, b;
+      if (alt < 450) {
+        r = 220; g2 = 80; b = 40;
+      } else if (alt < 600) {
+        r = 210; g2 = 180; b = 50;
+      } else {
+        r = 60; g2 = 130; b = 230;
+      }
+
+      ctx.fillStyle = `rgb(${r},${g2},${b})`;
+      ctx.fillRect(pt[0] - 0.5, pt[1] - 0.5, 1.5, 1.5);
+    }
+    ctx.globalAlpha = 1.0;
+    _scheduleDebrisFrame();
+  }
+
+  function _scheduleDebrisFrame() {
+    rafId = requestAnimationFrame(_drawDebrisFrame);
+  }
+
+  // ── Orbit Trail Generator ─────────────────────────────────────────────────
+  function _orbitTrail(baseLon, baseLat, minutes) {
+    const numPts   = 80;
+    const period   = 95.0;      // minutes — typical LEO
+    const inc      = 53.0;      // degrees inclination
+    const direction = minutes < 0 ? -1 : 1;
+    const spanSecs  = Math.abs(minutes) * 60;
+    const points    = [];
+
+    const currentPhase = baseLat / inc >= 1 ? Math.PI / 2
+                       : baseLat / inc <= -1 ? -Math.PI / 2
+                       : Math.asin(baseLat / inc);
+
+    for (let i = 0; i <= numPts; i++) {
+      const dt    = (i / numPts) * spanSecs * direction;
+      const phase = (dt / (period * 60)) * 2 * Math.PI;
+      const lat   = inc * Math.sin(currentPhase + phase);
+      const earthRotation = (-360.0 / 86400.0) * dt;
+      const orbitAdv      = (dt / (period * 60)) * 360.0;
+      let   lon = baseLon + orbitAdv + earthRotation;
+      lon = ((lon + 180) % 360 + 360) % 360 - 180;
+      points.push([lon, Math.max(-85, Math.min(85, lat))]);
     }
 
-    // Split at antimeridian to avoid horizontal wrap glitches in D3
+    // Split at antimeridian to prevent horizontal wrap artifacts
     const segments = [];
-    let currentSegment = [points[0]];
+    let seg = [points[0]];
     for (let i = 1; i < points.length; i++) {
       if (Math.abs(points[i][0] - points[i-1][0]) > 180) {
-        segments.push(currentSegment);
-        currentSegment = [points[i]];
+        segments.push(seg);
+        seg = [points[i]];
       } else {
-        currentSegment.push(points[i]);
+        seg.push(points[i]);
       }
     }
-    segments.push(currentSegment);
+    segments.push(seg);
 
     return { type: 'MultiLineString', coordinates: segments };
   }
 
-  // ── Update Terminator Line ────────────────────────────────────────────────
-  function updateTerminator() {
-    if (!g) return;
+  // ── Resize ────────────────────────────────────────────────────────────────
+  function resize() {
+    const container = document.getElementById('groundtrack-svg-container');
+    if (!container) return;
 
-    // Use simulation time for sun position
-    const now = AppState.state.simTime ? new Date(AppState.state.simTime) : new Date();
-    const startOfYear = new Date(now.getFullYear(), 0, 1);
-    const dayOfYear = (now - startOfYear) / 86400000;
+    _measure(container);
 
-    // Simplified solar position
-    const sunLon = -((now.getUTCHours() + now.getUTCMinutes()/60 + now.getUTCSeconds()/3600) / 24) * 360 + 180;
-    const sunLat = 23.44 * Math.sin((2 * Math.PI * (dayOfYear - 80)) / 365.25);
+    if (svg) svg.attr('width', width).attr('height', height);
+    if (canvas) { canvas.width = width; canvas.height = height; }
 
-    const nightSide = [];
-    for (let lon = -180; lon <= 180; lon += 5) {
-      const phase = (lon - sunLon) * Math.PI / 180;
-      let termLat = -Math.atan(Math.cos(phase) / Math.tan(sunLat * Math.PI/180)) * 180/Math.PI;
-      termLat = Math.max(-89.9, Math.min(89.9, termLat));
-      nightSide.push([lon, termLat]);
+    if (g) {
+      g.selectAll('*').remove();
+      _drawBackground();
+      _drawGraticule();
+      _loadWorld();
+      _drawStaticLines();
     }
-
-    // Connect polygon into the dark pole
-    if (sunLat >= 0) {
-        nightSide.push([180, -90], [-180, -90]); // South pole is dark
-    } else {
-        nightSide.push([180, 90], [-180, 90]);   // North pole is dark
-    }
-
-    g.select('#terminator-line')
-      .datum({type: 'Polygon', coordinates: [nightSide]})
-      .attr('d', d3.geoPath().projection(projection))
-      .attr('fill', 'rgba(0, 0, 0, 0.45)')
-      .attr('stroke', 'rgba(255, 100, 50, 0.25)');
   }
 
-  return { init, resize, update };
+  return { init, update, updateDebris, resize };
 })();

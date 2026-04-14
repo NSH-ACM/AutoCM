@@ -1,5 +1,12 @@
 /* ═══════════════════════════════════════════════════════════════════════════
    ORBITAL INSIGHT — Conjunction Bullseye Chart (D3.js)
+   Section 6.2 — Conjunction "Bullseye" Plot (Polar Chart)
+   • Centre = selected satellite (origin)
+   • Radial distance = Time to Closest Approach (TCA) in hours
+   • Angle = real approach bearing from satellite lat/lon to debris lat/lon
+   • Risk colour coding — Green ≥5 km, Yellow <5 km, Red <1 km (spec §6.2)
+   • Animated radar sweep
+   • Legend overlay
    ═══════════════════════════════════════════════════════════════════════════ */
 
 const Bullseye = (() => {
@@ -9,18 +16,12 @@ const Bullseye = (() => {
   let height = 0;
   let radius = 0;
   let isInitialized = false;
-
-  // Ring boundaries in hours
-  const RINGS = [
-    { label: '0h', hoursMax: 0 },
-    { label: '8h', hoursMax: 8 },
-    { label: '16h', hoursMax: 16 },
-    { label: '24h', hoursMax: 24 },
-  ];
+  // Keep a satellite position lookup for bearing calculation
+  let _satPositions = {};
 
   const MAX_HOURS = 24;
 
-  // ── Initialize ───────────────────────────────────────────────────────────
+  // ── Initialize ────────────────────────────────────────────────────────────
   function init() {
     if (isInitialized) return;
     isInitialized = true;
@@ -36,171 +37,242 @@ const Bullseye = (() => {
       .style('width', '100%')
       .style('height', '100%');
 
-    g = svg.append('g')
-      .attr('transform', `translate(${width/2},${height/2})`);
-
-    drawStaticElements();
+    _buildDefs();
+    g = svg.append('g').attr('transform', `translate(${width / 2},${height / 2})`);
+    _drawStaticElements();
   }
 
   function _measure(container) {
-    if (!container) container = document.getElementById('bullseye-svg-container');
+    container = container || document.getElementById('bullseye-svg-container');
     if (!container) return;
     const rect = container.getBoundingClientRect();
-    width = Math.max(rect.width, 200);
+    width  = Math.max(rect.width,  200);
     height = Math.max(rect.height, 200);
-    radius = Math.min(width, height) / 2 - 25;
+    radius = Math.min(width, height) / 2 - 30;
   }
 
-  function resize() {
-    if (!svg) return;
-    const container = document.getElementById('bullseye-svg-container');
-    if (!container) return;
-    _measure(container);
-    svg.attr('viewBox', `0 0 ${width} ${height}`);
+  // ── SVG Defs (filters, gradients) ────────────────────────────────────────
+  function _buildDefs() {
+    const defs = svg.append('defs');
+
+    const mkGlow = (id, color, std) => {
+      const f = defs.append('filter').attr('id', id)
+        .attr('x', '-50%').attr('y', '-50%').attr('width', '200%').attr('height', '200%');
+      f.append('feGaussianBlur').attr('stdDeviation', std).attr('result', 'blur');
+      f.append('feMerge').selectAll('feMergeNode')
+        .data(['blur', 'SourceGraphic']).join('feMergeNode').attr('in', d => d);
+    };
+
+    mkGlow('glow-blue', '#4a9eff', 3);
+    mkGlow('glow-red',  '#e74c3c', 5);
+    mkGlow('glow-amber','#f39c12', 3);
   }
 
-  // ── Static Elements ──────────────────────────────────────────────────────
-  function drawStaticElements() {
-    // Background fill
+  // ── Static Elements (rings, radials, legend) ─────────────────────────────
+  function _drawStaticElements() {
+    // Background circle
     g.append('circle')
       .attr('r', radius)
-      .attr('fill', 'rgba(3,5,8,0.6)')
-      .attr('stroke', 'var(--border-dim)')
+      .attr('fill', 'rgba(3,5,12,0.7)')
+      .attr('stroke', '#1a2a3e')
       .attr('stroke-width', 1);
 
-    // Concentric rings
-    const ringRadii = [radius, radius * (16/24), radius * (8/24)];
-    const ringLabels = ['24h', '16h', '8h'];
-
-    ringRadii.forEach((r, i) => {
+    // Concentric rings: 8h, 16h, 24h
+    const ringDefs = [
+      { hours: 8,  r: radius * (8  / MAX_HOURS) },
+      { hours: 16, r: radius * (16 / MAX_HOURS) },
+      { hours: 24, r: radius },
+    ];
+    ringDefs.forEach(({ hours, r }) => {
       g.append('circle')
         .attr('r', r)
         .attr('fill', 'none')
-        .attr('stroke', '#1a2a3e')
-        .attr('stroke-width', 0.5)
-        .attr('stroke-dasharray', i === 0 ? 'none' : '4,4');
+        .attr('stroke', '#1a3050')
+        .attr('stroke-width', hours === 24 ? 1 : 0.5)
+        .attr('stroke-dasharray', hours === 24 ? 'none' : '4,4');
 
-      // Label at 3 o'clock
+      // Hour label at 3 o'clock
       g.append('text')
         .attr('x', r + 4)
         .attr('y', 3)
-        .attr('fill', '#5a7a9a')
+        .attr('fill', '#3a6a9a')
         .attr('font-size', '8px')
-        .attr('font-family', 'JetBrains Mono')
-        .text(ringLabels[i]);
+        .attr('font-family', 'JetBrains Mono, monospace')
+        .text(`${hours}h`);
     });
 
-    // Critical zone — inner red circle
-    const critRadius = radius * (2/24);
+    // Critical zone — inner 2h red ring
+    const critR = radius * (2 / MAX_HOURS);
     g.append('circle')
-      .attr('r', critRadius)
-      .attr('fill', 'rgba(231,76,60,0.08)')
+      .attr('class', 'crit-ring')
+      .attr('r', critR)
+      .attr('fill', 'rgba(231,76,60,0.07)')
       .attr('stroke', '#e74c3c')
       .attr('stroke-width', 1)
-      .attr('stroke-dasharray', '6,4')
-      .attr('class', 'rotating-dash');
+      .attr('stroke-dasharray', '6,4');
 
-    // Center satellite dot
-    g.append('circle')
-      .attr('r', 4)
-      .attr('fill', '#4a9eff')
-      .attr('filter', 'url(#glow-blue)');
-
-    // Radial lines (8 directions)
+    // Radial spokes (8)
     for (let i = 0; i < 8; i++) {
       const angle = (i * 45 - 90) * Math.PI / 180;
       g.append('line')
         .attr('x1', 0).attr('y1', 0)
         .attr('x2', Math.cos(angle) * radius)
         .attr('y2', Math.sin(angle) * radius)
-        .attr('stroke', '#1a2a3e')
-        .attr('stroke-width', 0.5)
-        .attr('opacity', 0.5);
+        .attr('stroke', '#0d1f33')
+        .attr('stroke-width', 0.5);
     }
 
-    // North indicator
-    g.append('text')
-      .attr('x', 0)
-      .attr('y', -radius - 8)
-      .attr('text-anchor', 'middle')
-      .attr('fill', '#5a7a9a')
-      .attr('font-size', '9px')
-      .attr('font-family', 'JetBrains Mono')
-      .text('N');
+    // Cardinal direction labels
+    [['N', 0, -1], ['E', 1, 0], ['S', 0, 1], ['W', -1, 0]].forEach(([label, dx, dy]) => {
+      g.append('text')
+        .attr('x', dx * (radius + 12))
+        .attr('y', dy * (radius + 14))
+        .attr('text-anchor', 'middle')
+        .attr('dominant-baseline', 'central')
+        .attr('fill', '#3a6a9a')
+        .attr('font-size', '9px')
+        .attr('font-family', 'JetBrains Mono, monospace')
+        .text(label);
+    });
 
-    // Radar sweep line (decorative)
+    // Radar sweep animation
     const sweepLine = g.append('line')
       .attr('x1', 0).attr('y1', 0)
       .attr('x2', 0).attr('y2', -radius)
-      .attr('stroke', 'rgba(74,158,255,0.15)')
-      .attr('stroke-width', 1);
+      .attr('stroke', 'rgba(74,158,255,0.18)')
+      .attr('stroke-width', 1.5);
 
-    // Animate sweep
-    function animateSweep() {
+    (function animateSweep() {
       sweepLine.transition()
-        .duration(6000)
+        .duration(5000)
         .ease(d3.easeLinear)
         .attrTween('transform', () => d3.interpolateString('rotate(0)', 'rotate(360)'))
         .on('end', animateSweep);
-    }
-    animateSweep();
+    })();
 
-    // SVG Defs for glow filter
-    const defs = svg.append('defs');
+    // Centre satellite dot
+    g.append('circle')
+      .attr('r', 5)
+      .attr('fill', '#4a9eff')
+      .attr('filter', 'url(#glow-blue)');
 
-    const glowBlue = defs.append('filter').attr('id', 'glow-blue').attr('x', '-50%').attr('y', '-50%').attr('width', '200%').attr('height', '200%');
-    glowBlue.append('feGaussianBlur').attr('stdDeviation', '3').attr('result', 'blur');
-    glowBlue.append('feMerge').selectAll('feMergeNode').data(['blur','SourceGraphic']).join('feMergeNode').attr('in', d => d);
+    // Legend
+    _drawLegend();
 
-    const glowRed = defs.append('filter').attr('id', 'glow-red').attr('x', '-50%').attr('y', '-50%').attr('width', '200%').attr('height', '200%');
-    glowRed.append('feGaussianBlur').attr('stdDeviation', '4').attr('result', 'blur');
-    glowRed.append('feMerge').selectAll('feMergeNode').data(['blur','SourceGraphic']).join('feMergeNode').attr('in', d => d);
+    // Debris dots group (drawn above everything)
+    g.append('g').attr('class', 'debris-group');
+  }
+
+  function _drawLegend() {
+    const lx = -radius;
+    const ly =  radius - 6;
+    const legend = g.append('g').attr('transform', `translate(${lx},${ly})`);
+
+    const items = [
+      { color: '#2ecc71', label: '≥5 km — Safe' },
+      { color: '#f39c12', label: '<5 km — Warning' },
+      { color: '#e74c3c', label: '<1 km — Critical' },
+    ];
+
+    items.forEach(({ color, label }, i) => {
+      const row = legend.append('g').attr('transform', `translate(0,${-i * 14})`);
+      row.append('circle').attr('r', 4).attr('fill', color).attr('cy', -1);
+      row.append('text')
+        .attr('x', 9)
+        .attr('fill', '#5a7a9a')
+        .attr('font-size', '8px')
+        .attr('font-family', 'JetBrains Mono, monospace')
+        .attr('dominant-baseline', 'central')
+        .attr('y', -1)
+        .text(label);
+    });
+  }
+
+  // ── Satellite Position Cache ──────────────────────────────────────────────
+  function setSatellitePositions(satellites) {
+    _satPositions = {};
+    (satellites || []).forEach(s => {
+      _satPositions[s.id] = { lat: s.lat, lon: s.lon };
+    });
+  }
+
+  // ── Bearing Calculation ──────────────────────────────────────────────────
+  // Returns bearing in degrees [0, 360) from (lat1,lon1) to (lat2,lon2)
+  function _bearing(lat1, lon1, lat2, lon2) {
+    const φ1 = lat1 * Math.PI / 180;
+    const φ2 = lat2 * Math.PI / 180;
+    const Δλ = (lon2 - lon1) * Math.PI / 180;
+    const y  = Math.sin(Δλ) * Math.cos(φ2);
+    const x  = Math.cos(φ1) * Math.sin(φ2) - Math.sin(φ1) * Math.cos(φ2) * Math.cos(Δλ);
+    return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+  }
+
+  // ── Risk Colour (spec §6.2) ───────────────────────────────────────────────
+  function _riskColor(missKm) {
+    if (missKm < 1) return '#e74c3c';   // Red — Critical < 1 km
+    if (missKm < 5) return '#f39c12';   // Yellow — Warning < 5 km
+    return '#2ecc71';                   // Green — Safe ≥ 5 km
   }
 
   // ── Update with CDM Data ─────────────────────────────────────────────────
   function update(cdms, simTimestamp) {
     if (!g) return;
 
-    const now = new Date(simTimestamp);
-    const satIdEl = document.getElementById('bullseye-sat-id');
+    const now = simTimestamp ? new Date(simTimestamp) : new Date();
+    const selectedId = AppState?.state?.selectedSatelliteId;
 
-    // Determine satellite context
-    const selectedId = AppState.state.selectedSatelliteId;
+    // Determine CDMs to show
     const relevantCDMs = selectedId
       ? cdms.filter(c => c.satelliteId === selectedId)
-      : cdms.slice(0, 15);
+      : cdms.slice(0, 20);
 
-    if (satIdEl) {
-      satIdEl.textContent = selectedId || 'ALL SATELLITES';
-    }
+    // Update subtitle
+    const satIdEl = document.getElementById('bullseye-sat-id');
+    if (satIdEl) satIdEl.textContent = selectedId || 'ALL SATELLITES';
 
-    // Map CDMs to polar coordinates
+    // Map CDMs → polar coordinates using real bearing from sat → debris
+    const satPos = selectedId ? _satPositions[selectedId] : null;
+
     const dots = relevantCDMs.map((cdm, i) => {
-      const tcaDate = new Date(cdm.tca);
+      const tcaDate    = new Date(cdm.tca);
       const hoursToTCA = Math.max(0, (tcaDate - now) / 3600000);
       const r = Math.min(hoursToTCA / MAX_HOURS, 1) * radius;
-      const angle = ((i * 137.508) % 360) * Math.PI / 180; // golden angle distribution
 
-      let color = '#2ecc71'; // green > 5km
-      if (cdm.missDistance < 0.1) color = '#e74c3c';
-      else if (cdm.missDistance < 1) color = '#e74c3c';
-      else if (cdm.missDistance < 5) color = '#f39c12';
+      // Bearing: use real sat → debris position if available
+      let angleDeg;
+      if (satPos && cdm.debrisLat !== undefined && cdm.debrisLon !== undefined) {
+        angleDeg = _bearing(satPos.lat, satPos.lon, cdm.debrisLat, cdm.debrisLon);
+      } else if (cdm.approachAngle !== undefined) {
+        angleDeg = cdm.approachAngle;
+      } else {
+        // Deterministic fallback — hash satellite+debris ID
+        let hash = 0;
+        const key = (cdm.debrisId || '') + (cdm.satelliteId || '') + i;
+        for (let k = 0; k < key.length; k++) hash = (hash * 31 + key.charCodeAt(k)) & 0xfffff;
+        angleDeg = (hash % 360 + 360) % 360;
+      }
 
-      const size = Math.max(3, Math.min(10, cdm.probability * 500));
+      const angleRad = (angleDeg - 90) * Math.PI / 180;
+      const color    = _riskColor(cdm.missDistance);
+      const size     = cdm.missDistance < 1 ? 7
+                     : cdm.missDistance < 5 ? 5
+                     : 3.5;
 
       return {
-        x: Math.cos(angle - Math.PI/2) * r,
-        y: Math.sin(angle - Math.PI/2) * r,
+        x: Math.cos(angleRad) * r,
+        y: Math.sin(angleRad) * r,
         color,
         size,
         cdm,
         hoursToTCA,
+        angleDeg,
       };
     });
 
-    // D3 data join with animation
-    const circles = g.selectAll('.debris-dot')
-      .data(dots, (d, i) => d.cdm.debrisId + '-' + i);
+    // D3 data join
+    const debrisGroup = g.select('.debris-group');
+    const circles = debrisGroup.selectAll('.debris-dot')
+      .data(dots, (d, i) => (d.cdm.debrisId || '') + '-' + i);
 
     // Enter
     const enter = circles.enter()
@@ -210,42 +282,40 @@ const Bullseye = (() => {
       .attr('cy', d => d.y)
       .attr('r', 0)
       .attr('fill', d => d.color)
-      .attr('opacity', 0.8)
+      .attr('opacity', 0.85)
       .attr('filter', d => d.cdm.missDistance < 1 ? 'url(#glow-red)' : 'none')
-      .style('cursor', 'pointer');
-
-    enter.transition()
-      .duration(600)
-      .attr('r', d => d.size);
+      .style('cursor', 'pointer')
+      .on('click', (event, d) => {
+        if (typeof AppState !== 'undefined') AppState.selectSatellite(d.cdm.satelliteId);
+      });
 
     enter.append('title')
-      .text(d => `${d.cdm.debrisId}\nMiss: ${d.cdm.missDistance.toFixed(3)} km\nTCA: T-${d.hoursToTCA.toFixed(1)}h\nP(collision): ${(d.cdm.probability * 100).toFixed(3)}%`);
+      .text(d => `${d.cdm.debrisId || 'Unknown'}\nMiss: ${d.cdm.missDistance?.toFixed(3)} km\nTCA: T-${d.hoursToTCA.toFixed(1)}h\nBearing: ${d.angleDeg.toFixed(0)}°\nP(coll): ${((d.cdm.probability || 0) * 100).toFixed(4)}%`);
+
+    enter.transition().duration(500).attr('r', d => d.size);
 
     // Update
-    circles.transition()
-      .duration(500)
+    circles.transition().duration(400)
       .attr('cx', d => d.x)
       .attr('cy', d => d.y)
       .attr('r', d => d.size)
       .attr('fill', d => d.color);
 
     circles.select('title')
-      .text(d => `${d.cdm.debrisId}\nMiss: ${d.cdm.missDistance.toFixed(3)} km\nTCA: T-${d.hoursToTCA.toFixed(1)}h\nP(collision): ${(d.cdm.probability * 100).toFixed(3)}%`);
+      .text(d => `${d.cdm.debrisId || 'Unknown'}\nMiss: ${d.cdm.missDistance?.toFixed(3)} km\nTCA: T-${d.hoursToTCA.toFixed(1)}h\nBearing: ${d.angleDeg.toFixed(0)}°\nP(coll): ${((d.cdm.probability || 0) * 100).toFixed(4)}%`);
 
     // Exit
-    circles.exit()
-      .transition()
-      .duration(300)
-      .attr('r', 0)
-      .remove();
+    circles.exit().transition().duration(300).attr('r', 0).remove();
   }
 
-  // ── Resize ───────────────────────────────────────────────────────────────
+  // ── Resize ────────────────────────────────────────────────────────────────
   function resize() {
     isInitialized = false;
     if (svg) svg.selectAll('*').remove();
+    svg = null;
+    g = null;
     init();
   }
 
-  return { init, update, resize };
+  return { init, update, resize, setSatellitePositions };
 })();
