@@ -57,14 +57,14 @@ async def schedule_evasion(cmd: ScheduleEvasionCommand):
     if sat.status == "EOL":
         raise HTTPException(status_code=400, detail=f"Satellite {cmd.satellite_id} is EOL")
 
-    dv_kms = cmd.dv_magnitude_ms / 1000.0
+    dv_ms = cmd.dv_magnitude_ms
     r, v = sat.r, sat.v
-    r_mag = math.sqrt(r["x"]**2 + r["y"]**2 + r["z"]**2)
+    r_mag = math.sqrt(r.x**2 + r.y**2 + r.z**2)
     if r_mag < 1:
         raise HTTPException(status_code=500, detail="Invalid satellite position")
 
-    R_hat = (r["x"]/r_mag, r["y"]/r_mag, r["z"]/r_mag)
-    N_raw = (r["y"]*v["z"]-r["z"]*v["y"], r["z"]*v["x"]-r["x"]*v["z"], r["x"]*v["y"]-r["y"]*v["x"])
+    R_hat = (r.x/r_mag, r.y/r_mag, r.z/r_mag)
+    N_raw = (r.y*v.z-r.z*v.y, r.z*v.x-r.x*v.z, r.x*v.y-r.y*v.x)
     N_mag = math.sqrt(sum(c**2 for c in N_raw))
     N_hat = tuple(c/N_mag for c in N_raw) if N_mag > 1e-10 else (0, 0, 1)
     T_hat = (N_hat[1]*R_hat[2]-N_hat[2]*R_hat[1], N_hat[2]*R_hat[0]-N_hat[0]*R_hat[2], N_hat[0]*R_hat[1]-N_hat[1]*R_hat[0])
@@ -75,9 +75,9 @@ async def schedule_evasion(cmd: ScheduleEvasionCommand):
         "NORMAL_POS": (N_hat, +1), "NORMAL_NEG": (N_hat, -1),
     }
     direction, sign = strategy_map.get(cmd.strategy, (T_hat, +1))
-    delta_v = {"x": sign*dv_kms*direction[0], "y": sign*dv_kms*direction[1], "z": sign*dv_kms*direction[2]}
+    delta_v = {"x": sign*dv_ms*direction[0], "y": sign*dv_ms*direction[1], "z": sign*dv_ms*direction[2]}
 
-    result = state.execute_maneuver(sat_id=cmd.satellite_id, delta_v=delta_v, burn_duration=300.0)
+    result = state.execute_maneuver(sat_id=cmd.satellite_id, delta_v=delta_v)
     if "error" in result:
         raise HTTPException(status_code=400, detail=result["error"])
     result["strategy"] = cmd.strategy

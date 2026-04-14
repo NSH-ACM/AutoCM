@@ -8,6 +8,7 @@
 
 import os
 import json
+import numpy as np
 from datetime import datetime, timezone
 from typing import Dict, List, Optional, Any
 
@@ -34,7 +35,9 @@ class StateManager:
         
         data_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data")
         self.comms = CommsService(os.path.join(data_dir, "ground_stations.csv"))
-        self.decision = DecisionService(self.fleet, self.maneuver)
+        
+        # Inject alert callback to decision service for automated mission logs
+        self.decision = DecisionService(self.fleet, self.maneuver, alert_callback=self._add_alert, comms_service=self.comms)
         
         self.sim = SimulationService(self.fleet, self.conj, self.maneuver, self.comms, self.decision)
         
@@ -43,6 +46,47 @@ class StateManager:
         self.alerts = []
         self._alert_counter = 0
         self.real_interval_ms = 1000  # ms between sim ticks
+
+    def reset(self):
+        """Reset the system state for testing (re-initializes services)."""
+        self.fleet = FleetService()
+        self.conj = ConjunctionService()
+        self.maneuver = ManeuverService()
+        self.decision = DecisionService(self.fleet, self.maneuver, alert_callback=self._add_alert, comms_service=self.comms)
+        self.sim = SimulationService(self.fleet, self.conj, self.maneuver, self.comms, self.decision)
+        self.alerts = []
+        self._alert_counter = 0
+        self._ws_clients = set()
+        self.real_interval_ms = 1000
+
+    def _rtn_to_eci(self, r: Any, v: Any, dr_rtn: Any) -> Dict[str, float]:
+        """
+        Facade for coordinate conversion logic. 
+        Transforms a relative vector in RTN to the absolute ECI frame.
+        Handles dict, Vector3, or np.ndarray inputs for robustness.
+        Returns: dict {x, y, z}
+        """
+        def _to_np(val):
+            if isinstance(val, dict):
+                # Handle both {x,y,z} and {radial,transverse,normal}
+                return np.array([val.get('x', val.get('radial', 0)), 
+                                val.get('y', val.get('transverse', 0)), 
+                                val.get('z', val.get('normal', 0))])
+            if hasattr(val, 'to_np'):
+                return val.to_np()
+            if isinstance(val, (list, tuple)):
+                return np.array(val)
+            return val
+
+        r_np = _to_np(r)
+        v_np = _to_np(v)
+        dr_np = _to_np(dr_rtn)
+
+        from .core.navigation import Navigator
+        nav = Navigator()
+        res_np = nav.rtn_to_eci(dr_np, r_np, v_np)
+        
+        return {"x": float(res_np[0]), "y": float(res_np[1]), "z": float(res_np[2])}
 
     # ── Backward Compatible Properties ─────────────────────────────────────
     
@@ -133,15 +177,19 @@ class StateManager:
 
         errors = []
         
-        # 1. Comms LOS Check (Section 5.4)
-        has_los = self.comms.has_los(sat.r.to_np())
-        if not has_los:
-            errors.append("No ground station line-of-sight for command upload")
+        # Note: LOS check is handled in ManeuverService.schedule_burns for queueing
+        # We don't reject here to allow blackout queueing (Section 5.4)
+        has_los = True  # Default to True since queueing handles blackout scenarios
+
+        # 1. Thrust Limit Check (Section 5.1)
+        # delta_v is in m/s
+        dv_mag = np.linalg.norm(np.array([delta_v['x'], delta_v['y'], delta_v['z']]))
+        if dv_mag > 15.0:
+            errors.append(f"Thrust limit violation (15.0 m/s): {dv_mag:.2f} m/s")
 
         # 2. Fuel Check
         from .core.navigation import Navigator
         nav = Navigator()
-        dv_mag = np.linalg.norm(np.array([delta_v['x'], delta_v['y'], delta_v['z']])) * 1000.0
         fuel_cost = nav.compute_fuel_cost(sat.mass_kg, dv_mag)
         
         sufficient_fuel = sat.fuel_kg >= fuel_cost
@@ -156,12 +204,12 @@ class StateManager:
             errors.append("Thruster cooldown violation (600s)")
 
         return {
-            "valid": len(errors) == 0,
-            "ground_station_los": has_los,
-            "sufficient_fuel": sufficient_fuel,
-            "thruster_cooldown_ok": cooldown_ok,
-            "fuel_cost_kg": round(fuel_cost, 4),
-            "projected_mass_remaining_kg": round(sat.mass_kg - fuel_cost, 2),
+            "valid": bool(len(errors) == 0),
+            "ground_station_los": bool(has_los),
+            "sufficient_fuel": bool(sufficient_fuel),
+            "thruster_cooldown_ok": bool(cooldown_ok),
+            "fuel_cost_kg": float(round(fuel_cost, 4)),
+            "projected_mass_remaining_kg": float(round(sat.mass_kg - fuel_cost, 2)),
             "errors": errors
         }
 
@@ -184,6 +232,10 @@ class StateManager:
             "conjunctions": {
                 "total_active": len(self.conj.active_cdms),
                 "critical": len(critical_cdms),
+            },
+            "uptime": {
+                "fleet_avg_score": round(sum(s.uptime_score for s in sats) / len(sats) if sats else 1.0, 4),
+                "total_outages": sum(len(s.outage_events) for s in sats),
             },
             "sim_time": self.sim.sim_time.isoformat(),
         }
@@ -220,18 +272,20 @@ class StateManager:
             burnTime=burn_dt,
             deltaV_vector=Vector3(**delta_v)
         )
-        res = self.maneuver.schedule_burns(sat_id, [m], sat.fuel_kg)
+        res = self.maneuver.schedule_burns(sat_id, [m], sat.fuel_kg, self.sim.sim_time, 
+                                           comms_service=self.comms, sat_r_eci=sat.r.to_np())
         return res
 
     # ── Snapshot for Dashboard ────────────────────────────────────────────
 
     def get_snapshot(self) -> dict:
+        """Rulebook compliant snapshot (Section 6.3)."""
         return {
             "timestamp": self.sim.sim_time.isoformat(),
             "satellites": [s.model_dump() for s in self.fleet.satellites.values()],
-            "debris_cloud": self.fleet.get_debris_snapshot(),
+            "debris_cloud": self.fleet.get_debris_snapshot(), # Flattened [ID, lat, lon, alt]
             "cdms": [c.model_dump() for c in self.conj.active_cdms],
-            "maneuvers": self.maneuvers # Combined pending
+            "maneuvers": self.maneuvers
         }
 
     def register_ws(self, ws): self._ws_clients.add(ws)

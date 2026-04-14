@@ -31,7 +31,7 @@ class TelemetryPayload(BaseModel):
 class ManeuverBurn(BaseModel):
     burn_id: str
     burnTime: str  # ISO 8601 UTC - camelCase per spec Section 4.2
-    deltaV_vector: Dict[str, float] = Field(..., description="ECI delta-v in km/s {x, y, z}")
+    deltaV_vector: Dict[str, float] = Field(..., description="ECI delta-v in m/s {x, y, z}")
 
 
 class ScheduleManeuverPayload(BaseModel):
@@ -101,16 +101,12 @@ async def post_telemetry(payload: TelemetryPayload):
 async def schedule_maneuver(payload: ScheduleManeuverPayload):
     """
     Accepts satelliteId + maneuver_sequence array
-    Each burn: burn_id, burnTime (ISO 8601), deltaV_vector {x,y,z}
+    Each burn: burn_id, burnTime (ISO 8601), deltaV_vector {x,y,z} in m/s
     Validates ground station line-of-sight
     Validates sufficient fuel
     Returns: status "SCHEDULED", nested validation object per spec Section 4.2
     """
     try:
-        # Load ground stations if not already loaded
-        if not state.ground_stations:
-            state.load_ground_stations()
-
         # Get satellite
         sat = state.satellites.get(payload.satelliteId)
         if not sat:
@@ -132,6 +128,18 @@ async def schedule_maneuver(payload: ScheduleManeuverPayload):
                 })
                 continue
 
+            # ── Signal Delay Check (Section 5.4) ────────────────────────────────
+            # "There is a hardcoded 10-second latency for any API command."
+            # "You cannot schedule a burn to occur earlier than Current Simulation Time + 10s."
+            time_to_burn = (burn_time - state.sim_time).total_seconds()
+            if time_to_burn < 10.0:
+                failed_burns.append({
+                    "burn_id": burn.burn_id,
+                    "error": f"Signal latency violation: Burn scheduled for T+{time_to_burn:.2f}s, need 10s minimum.",
+                    "validation": {"valid": False, "errors": ["Signal latency violation"]}
+                })
+                continue
+
             # Validate maneuver against all constraints
             validation = state.validate_maneuver(
                 sat_id=payload.satelliteId,
@@ -149,7 +157,8 @@ async def schedule_maneuver(payload: ScheduleManeuverPayload):
                     burnTime=burn_time,
                     deltaV_vector=Vector3(**burn.deltaV_vector)
                 )
-                state.maneuver.schedule_burns(payload.satelliteId, [m], sat.fuel_kg)
+                state.maneuver.schedule_burns(payload.satelliteId, [m], sat.fuel_kg, state.sim_time,
+                                               comms_service=state.comms, sat_r_eci=sat.r.to_np())
                 
                 scheduled_burns.append({
                     "burn_id": burn.burn_id,
@@ -176,15 +185,15 @@ async def schedule_maneuver(payload: ScheduleManeuverPayload):
         return {
             "status": "SCHEDULED" if all_scheduled else "REJECTED",
             "validation": {
-                "ground_station_los": all(
+                "ground_station_los": bool(all(
                     b.get("validation", {}).get("ground_station_los", False)
                     for b in failed_burns
-                ) if failed_burns else True,
-                "sufficient_fuel": sat.fuel_kg >= total_fuel_cost,
-                "projected_mass_remaining_kg": round(projected_mass, 3)
+                )) if failed_burns else True,
+                "sufficient_fuel": bool(sat.fuel_kg >= total_fuel_cost),
+                "projected_mass_remaining_kg": float(round(projected_mass, 3))
             },
-            "scheduled_count": len(scheduled_burns),
-            "failed_count": len(failed_burns),
+            "scheduled_count": int(len(scheduled_burns)),
+            "failed_count": int(len(failed_burns)),
             "scheduled_burns": scheduled_burns,
             "failed_burns": failed_burns
         }
@@ -229,7 +238,7 @@ async def get_snapshot():
             debris_cloud.append([deb.id, deb.lat, deb.lon, deb.alt_km])
 
         return {
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": state.sim_time.isoformat(),
             "satellites": snapshot["satellites"],
             "debris_cloud": debris_cloud,
             "cdms": snapshot["cdms"],

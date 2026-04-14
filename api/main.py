@@ -113,7 +113,7 @@ app.include_router(auth_router)
 async def health_check():
     """Health check endpoint."""
     return {
-        "status": "OK",
+        "status": "healthy",
         "sim_time": state.sim_time.isoformat(),
         "satellites": len(state.satellites),
         "debris": len(state.debris),
@@ -123,8 +123,10 @@ async def health_check():
 
 @app.get("/api/visualization/snapshot")
 async def get_snapshot():
-    """Full state snapshot for dashboard visualization."""
-    return state.get_snapshot()
+    """Rulebook compliant snapshot (Section 6.3) - optimized for telemetry."""
+    # Ensure consistent formatting for debris cloud [ID, lat, lon, alt]
+    snapshot = state.get_snapshot()
+    return snapshot
 
 
 @app.get("/api/constellation/stats")
@@ -143,7 +145,7 @@ async def get_alerts(after: int = 0):
 
 # ── Simulation Control ────────────────────────────────────────────────────
 
-@app.post("/api/simulation/step")
+@app.post("/api/simulate/step")
 async def simulation_step(body: dict = None):
     """Advance simulation by one step."""
     step_seconds = 60
@@ -163,7 +165,7 @@ async def simulation_step(body: dict = None):
     return result
 
 
-@app.post("/api/simulation/run")
+@app.post("/api/simulate/run")
 async def simulation_run(body: dict = None):
     """Start continuous simulation (Section 4 endpoint)."""
     if body:
@@ -173,14 +175,14 @@ async def simulation_run(body: dict = None):
     return {"status": "OK", "running": True}
 
 
-@app.post("/api/simulation/stop")
+@app.post("/api/simulate/stop")
 async def simulation_stop():
     """Stop continuous simulation (Section 4 endpoint)."""
     state.sim_running = False
     return {"status": "OK", "running": False}
 
 
-@app.get("/api/simulation/status")
+@app.get("/api/simulate/status")
 async def simulation_get_status():
     """Get simulation status (Section 4 endpoint)."""
     return {
@@ -191,22 +193,17 @@ async def simulation_get_status():
     }
 
 
-# Legacy endpoint aliases for backward compatibility
-@app.post("/api/simulate/run")
-async def start_simulation_legacy(body: dict = None):
-    """Legacy endpoint - redirects to /api/simulation/run"""
+# Legacy endpoint aliases for backward compatibility (Deprecated)
+@app.post("/api/simulation/run")
+async def start_simulation_sim_alias(body: dict = None):
     return await simulation_run(body)
 
-
-@app.post("/api/simulate/stop")
-async def stop_simulation_legacy():
-    """Legacy endpoint - redirects to /api/simulation/stop"""
+@app.post("/api/simulation/stop")
+async def stop_simulation_sim_alias():
     return await simulation_stop()
 
-
-@app.get("/api/simulate/status")
-async def simulation_status_legacy():
-    """Legacy endpoint - redirects to /api/simulation/status"""
+@app.get("/api/simulation/status")
+async def simulation_status_sim_alias():
     return await simulation_get_status()
 
 

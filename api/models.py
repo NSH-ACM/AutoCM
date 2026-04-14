@@ -39,6 +39,14 @@ class Satellite(BaseModel):
     r: Vector3 = Field(default_factory=lambda: Vector3(x=0, y=0, z=0))
     v: Vector3 = Field(default_factory=lambda: Vector3(x=0, y=0, z=0))
     
+    # Mission Slot & Performance Tracking (Section 5.2/7)
+    nominal_r: Vector3 = Field(default_factory=lambda: Vector3(x=0, y=0, z=0))
+    nominal_v: Vector3 = Field(default_factory=lambda: Vector3(x=0, y=0, z=0))
+    uptime_seconds: float = 0.0
+    uptime_score: float = 1.0  # Normalized 0.0 to 1.0 (Section 5.2)
+    is_nominal: bool = True
+    outage_events: List[Dict] = Field(default_factory=list)
+
     @property
     def mass_kg(self) -> float:
         return 500.0 + self.fuel_kg

@@ -83,3 +83,38 @@ class Navigator:
             dv_rtn[0] = dv_mag_kms
             
         return self.rtn_to_eci(dv_rtn, r_eci, v_eci)
+
+    def plan_station_keeping(self, r_eci: np.ndarray, v_eci: np.ndarray, nominal_r_eci: np.ndarray, nominal_v_eci: np.ndarray) -> np.ndarray:
+        """
+        Calculates a proportional RTN correction to return satellite to its nominal slot.
+        Uses proportional control: correction magnitude = proportional_gain * drift_distance
+        Clamped to 15.0 m/s maximum thrust limit (Section 5.1).
+        """
+        # Calculate drift vector in ECI
+        drift_eci = nominal_r_eci - r_eci
+        drift_km = np.linalg.norm(drift_eci)
+        
+        if drift_km < 0.1:  # Negligible drift, no correction needed
+            return np.zeros(3)
+        
+        # Convert drift to RTN frame for proportional control
+        drift_rtn = self.eci_to_rtn(drift_eci, r_eci, v_eci)
+        
+        # Proportional gain: moderate correction (0.3) to avoid overshoot
+        proportional_gain = 0.3
+        dv_rtn = drift_rtn * proportional_gain
+        
+        # Convert to m/s for thrust limit check
+        dv_m_s = dv_rtn * 1000.0  # RTN is in km/s, convert to m/s
+        dv_mag = np.linalg.norm(dv_m_s)
+        
+        # Clamp to 15.0 m/s thrust limit
+        max_thrust = 15.0
+        if dv_mag > max_thrust:
+            dv_m_s = dv_m_s / dv_mag * max_thrust
+        
+        # Convert back to km/s for physics engine
+        dv_km_s = dv_m_s / 1000.0
+        
+        # Convert RTN correction back to ECI
+        return self.rtn_to_eci(dv_km_s, r_eci, v_eci)

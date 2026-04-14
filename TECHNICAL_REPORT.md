@@ -88,6 +88,12 @@ The API validates the `timestamp` of incoming maneuver requests. Any command rec
 ### 5.3 Station-Keeping (Section 5.2)
 Monitors 3D drift relative to assigned nominal slot. Alerts are triggered if $\|\vec{r}_{current} - \vec{r}_{nominal}\| > 10 \text{ km}$.
 
+### 5.4 Autonomous Decision Logic (Intelligence Layer)
+The ACM system includes an autonomous decision engine which monitors CDMs and fuel levels:
+- **Immediate Recovery Burns**: To comply with Section 5.2, every evasion burn is automatically paired with a reverse recovery burn scheduled for 45 minutes later, ensuring return to the nominal slot without subsequent ground intervention.
+- **End-of-Life (EOL) Maneuvers**: In accordance with Section 5.1/5.2, satellites with fuel < 5% automatically schedule a final 15 m/s radial-out graveyard burn to elevate out of active traffic orbits.
+- **RTN Planning**: Automated maneuvers are computed in the RTN frame (Transverse-priority for fuel efficiency) and transformed to ECI using dynamic rotation matrices.
+
 ---
 
 ## 6. Performance Benchmarks (Pure Python v2)

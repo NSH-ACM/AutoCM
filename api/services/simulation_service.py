@@ -38,8 +38,29 @@ class SimulationService:
     def step(self, dt: float) -> Dict[str, Any]:
         """
         Advances the entire constellation state by dt seconds.
-        Performs: Propagation, Burn Execution, and Screening.
+        Sub-steps large windows to maintain RK4 stability (max 60s per step).
         """
+        MAX_STEP = 60.0
+        remaining_dt = dt
+        collisions_detected = 0
+        maneuvers_executed = 0
+        
+        while remaining_dt > 0:
+            step_dt = min(remaining_dt, MAX_STEP)
+            res = self._internal_step(step_dt)
+            collisions_detected += res["collisions_detected"]
+            maneuvers_executed += res["maneuvers_executed"]
+            remaining_dt -= step_dt
+            
+        return {
+            "status": "STEP_COMPLETE",
+            "new_timestamp": self.sim_time.isoformat(),
+            "collisions_detected": collisions_detected,
+            "maneuvers_executed": maneuvers_executed
+        }
+
+    def _internal_step(self, dt: float) -> Dict[str, Any]:
+        """Single physics iteration for dt seconds."""
         initial_time = self.sim_time
         target_time = initial_time + timedelta(seconds=dt)
         
@@ -70,8 +91,10 @@ class SimulationService:
                         curr_r, curr_v = self.propagator.propagate(curr_r, curr_v, dt_to_burn)
                     
                     # Apply IMPULSIVE burn (Section 5.1)
-                    dv = burn.deltaV_vector.to_np()
-                    curr_v += dv
+                    # Convert m/s (API unit) to km/s (Physics unit)
+                    dv_m_s = burn.deltaV_vector.to_np()
+                    dv_km_s = dv_m_s / 1000.0
+                    curr_v += dv_km_s
                     
                     # Deduct fuel
                     self.fleet.deduct_fuel(sat_id, burn.fuel_cost_kg)
@@ -86,8 +109,8 @@ class SimulationService:
                 # Standard propagation for full window
                 curr_r, curr_v = self.propagator.propagate(curr_r, curr_v, dt)
 
-            # Update Registry
-            self.fleet.update_satellite_state(sat_id, curr_r, curr_v)
+            # Update Registry with dt for nominal slot propagation
+            self.fleet.update_satellite_state(sat_id, curr_r, curr_v, dt=dt, sim_time=target_time)
 
         # ── 2. Propagate Debris ──────────────────────────────────────────────
         for deb_id, deb in self.fleet.debris.items():
@@ -101,7 +124,7 @@ class SimulationService:
             from ..core.physics import eci_to_latlon
             deb.r.x, deb.r.y, deb.r.z = new_r
             deb.v.x, deb.v.y, deb.v.z = new_v
-            deb.lat, deb.lon, deb.alt_km = eci_to_latlon(new_r)
+            deb.lat, deb.lon, deb.alt_km = eci_to_latlon(new_r, t=target_time)
 
         # ── 3. Screen for Conjunctions ───────────────────────────────────────
         sats = list(self.fleet.satellites.values())
@@ -112,12 +135,41 @@ class SimulationService:
         for cdm in self.conj.active_cdms:
             if cdm.missDistance < 0.1: # 100m
                 collisions_detected += 1
+        
+        # ── 3.5. Station-Keeping Check ───────────────────────────────────────
+        # Check satellites for drift and schedule RTN-based proportional corrections
+        if self.decision:
+            sk_actions = self.decision.check_station_keeping(sats, initial_time)
+            for action in sk_actions:
+                print(f"[STATION_KEEPING] {action['type']} for {action['satellite_id']} | Drift: {action.get('drift_km', 0):.2f}km")
 
         self.sim_time = target_time
         
         # ── 4. Autonomous Intelligence ───────────────────────────────────────
         if self.decision:
-            self.decision.process_cdms(self.conj.active_cdms, self.sim_time)
+            actions = self.decision.process_cdms(self.conj.active_cdms, self.sim_time)
+            # Log any significant actions as alerts
+            for action in actions:
+                msg = f"Autonomous Action: {action['type']} for {action['satellite_id']}"
+                if 'tca' in action:
+                    msg += f" | TCA: {action['tca']}"
+                # We need a way to add alerts to the state manager. 
+                # Since DecisionService was injected with Fleet/Maneuver, 
+                # maybe we can add a callback or just log to stdout for now, 
+                # or better, modify DecisionService to take an alert_callback.
+                print(f"[DECISION] {msg}")
+        
+        # ── 5. Process Blackout Upload Queue ────────────────────────────────────
+        # Check queued burns for each satellite and upload if LOS is available
+        for sat_id, sat in self.fleet.satellites.items():
+            if sat.status == "EOL": continue
+            queue_results = self.maneuver.process_upload_queue(
+                sat_id, self.sim_time, self.comms, sat.r.to_np(), sat.fuel_kg
+            )
+            if queue_results["uploaded"]:
+                print(f"[QUEUE] Uploaded {len(queue_results['uploaded'])} burns for {sat_id}")
+            if queue_results["expired"]:
+                print(f"[QUEUE] Expired {len(queue_results['expired'])} burns for {sat_id}")
         
         return {
             "status": "STEP_COMPLETE",
