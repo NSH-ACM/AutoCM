@@ -31,22 +31,18 @@ class BulkTelemetryPayload(BaseModel):
 @router.post("/ingest")
 async def ingest_telemetry(payload: TelemetryPayload):
     """Ingest telemetry data for a single satellite."""
-    telemetry = {}
-    updated = []
-    for field_name in ["lat", "lon", "alt_km", "fuel_kg", "status"]:
-        val = getattr(payload, field_name, None)
-        if val is not None:
-            telemetry[field_name] = val
-            updated.append(field_name)
-
-    if not telemetry:
-        raise HTTPException(status_code=400, detail="No telemetry fields provided")
-
-    success = state.ingest_telemetry(payload.satellite_id, telemetry)
-    if not success:
+    sat = state.fleet.satellites.get(payload.satellite_id)
+    if not sat:
         raise HTTPException(status_code=404, detail=f"Satellite {payload.satellite_id} not found")
+    
+    # Update fields
+    if payload.fuel_kg is not None: sat.fuel_kg = payload.fuel_kg
+    if payload.status is not None: sat.status = payload.status
+    if payload.lat is not None: sat.lat = payload.lat
+    if payload.lon is not None: sat.lon = payload.lon
+    if payload.alt_km is not None: sat.alt_km = payload.alt_km
 
-    return {"status": "OK", "satellite_id": payload.satellite_id, "updated_fields": updated}
+    return {"status": "OK", "satellite_id": payload.satellite_id}
 
 
 @router.post("/ingest/bulk")
@@ -65,10 +61,10 @@ async def ingest_bulk(payload: BulkTelemetryPayload):
 @router.get("/satellite/{satellite_id}")
 async def get_satellite(satellite_id: str):
     """Get current telemetry for a satellite."""
-    sat = state.satellites.get(satellite_id)
+    sat = state.fleet.satellites.get(satellite_id)
     if not sat:
         raise HTTPException(status_code=404, detail=f"Satellite {satellite_id} not found")
-    return {"satellite": sat.to_dict(), "eci_position": sat.r, "eci_velocity": sat.v}
+    return {"satellite": sat.model_dump(), "eci_position": sat.r.model_dump(), "eci_velocity": sat.v.model_dump()}
 
 
 @router.get("/constellation")
@@ -81,7 +77,7 @@ async def get_constellation():
 async def get_cdms():
     """Get active Conjunction Data Messages."""
     return {
-        "cdms": [c.to_dict() for c in state.cdms],
-        "count": len(state.cdms),
-        "critical": len([c for c in state.cdms if c.missDistance < 0.1]),
+        "cdms": [c.model_dump() for c in state.conj.active_cdms],
+        "count": len(state.conj.active_cdms),
+        "critical": len([c for c in state.conj.active_cdms if c.missDistance < 0.1]),
     }

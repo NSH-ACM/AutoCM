@@ -47,43 +47,46 @@ class SimulateStepPayload(BaseModel):
 async def post_telemetry(payload: TelemetryPayload):
     """
     Accepts timestamp + objects array (id, type, r{x,y,z}, v{x,y,z})
-    Asynchronously updates internal physics state
-    Returns: status "ACK", processed_count, active_cdm_warnings
+    Section 4.1 compliant.
     """
     try:
         processed_count = 0
-        timestamp = StateManager.parse_iso_time(payload.timestamp)
-
+        from api.models import Satellite, Debris, Vector3
+        
         for obj in payload.objects:
+            r_vec = Vector3(**obj.r)
+            v_vec = Vector3(**obj.v)
+            
             if obj.type == "SATELLITE":
-                sat_id = obj.id
-                if sat_id not in state.satellites:
-                    from api.state_manager import SatelliteState
-                    new_sat = SatelliteState(
-                        id=sat_id,
-                        lat=0.0, lon=0.0, alt_km=500.0,
-                        fuel_kg=50.0, status="NOMINAL",
-                        last_update=0.0
-                    )
-                    new_sat.r = obj.r
-                    new_sat.v = obj.v
-                    new_sat.lat, new_sat.lon, new_sat.alt_km = state._eci_to_latlon(obj.r)
-                    state.satellites[sat_id] = new_sat
-                else:
-                    sat = state.satellites[sat_id]
-                    sat.r = obj.r
-                    sat.v = obj.v
-                    sat.lat, sat.lon, sat.alt_km = state._eci_to_latlon(obj.r)
+                sat = Satellite(
+                    id=obj.id,
+                    r=r_vec,
+                    v=v_vec,
+                    fuel_kg=50.0,
+                    status="NOMINAL"
+                )
+                from api.core.physics import eci_to_latlon
+                sat.lat, sat.lon, sat.alt_km = eci_to_latlon(r_vec.to_np())
+                state.fleet.add_satellite(sat)
                 processed_count += 1
             elif obj.type == "DEBRIS":
-                deb_id = obj.id
-                from api.state_manager import DebrisObject
-                deb_r = obj.r
-                lat, lon, alt = state._eci_to_latlon(deb_r)
-                state.debris[deb_id] = DebrisObject(id=deb_id, lat=lat, lon=lon, alt_km=alt)
+                deb = Debris(
+                    id=obj.id,
+                    r=r_vec,
+                    v=v_vec,
+                    lat=0, lon=0, alt_km=0
+                )
+                from api.core.physics import eci_to_latlon
+                deb.lat, deb.lon, deb.alt_km = eci_to_latlon(r_vec.to_np())
+                state.fleet.add_debris(deb)
                 processed_count += 1
 
-        state.detect_conjunctions()
+        # Run detection
+        state.conj.screen_fleet(
+            list(state.fleet.satellites.values()), 
+            list(state.fleet.debris.values()), 
+            state.sim_time
+        )
 
         return {
             "status": "ACK",
@@ -139,7 +142,15 @@ async def schedule_maneuver(payload: ScheduleManeuverPayload):
 
             if validation["valid"]:
                 # Schedule the burn
-                state.record_burn(payload.satelliteId, burn_time)
+                from api.models import Maneuver, Vector3
+                m = Maneuver(
+                    burn_id=burn.burn_id,
+                    satelliteId=payload.satelliteId,
+                    burnTime=burn_time,
+                    deltaV_vector=Vector3(**burn.deltaV_vector)
+                )
+                state.maneuver.schedule_burns(payload.satelliteId, [m], sat.fuel_kg)
+                
                 scheduled_burns.append({
                     "burn_id": burn.burn_id,
                     "burnTime": burn.burnTime,
@@ -193,7 +204,7 @@ async def simulate_step(payload: SimulateStepPayload):
         collisions_detected, maneuvers_executed
     """
     try:
-        result = state.autonomy_engine.simulate_step(payload.step_seconds)
+        result = state.simulate_step(payload.step_seconds)
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

@@ -195,27 +195,30 @@ const GroundTrack = (() => {
   // ── Generate Orbit Trail Points ───────────────────────────────────────────
   function generateOrbitTrail(baseLon, baseLat, minutes) {
     const points = [];
-    const inc = 55.0; // Assume 55deg inclination
-    const orbitalPeriod = 95.0; // LEO period ~95min
-    const numPoints = Math.abs(minutes);
+    const inc = 53.0; // Typical LEO inclination for starlink-like nodes
+    const orbitalPeriod = 95.0; 
+    const numPoints = 60; // Resolution
     const direction = minutes < 0 ? -1 : 1;
-
-    // Use inverse sine to approximate current orbital phase
-    const currentPhase = Math.asin(Math.max(-1, Math.min(1, baseLat / inc))) * 180/Math.PI;
+    const timeSpanSecs = Math.abs(minutes) * 60;
 
     for (let i = 0; i <= numPoints; i++) {
-      const dt = i * direction;
-      const phaseOffset = (dt / orbitalPeriod) * 360.0;
-      const targetPhase = currentPhase + phaseOffset;
-      
-      const adjustedLat = inc * Math.sin(targetPhase * Math.PI/180);
-      const earthRotationDrift = (-360.0 / (24 * 60)) * dt;
-      const orbitAdvance = (dt / orbitalPeriod) * 360.0;
-      
-      let nextLon = baseLon + (direction > 0 ? orbitAdvance : -orbitAdvance) + earthRotationDrift;
-      nextLon = ((nextLon + 180) % 360 + 360) % 360 - 180;
-      
-      points.push([nextLon, adjustedLat]);
+        const dt = (i / numPoints) * timeSpanSecs * direction;
+        
+        // Simplified orbit model: circular with nodal regression
+        // In v2, this is just for visualization; backend handles the real math.
+        const phase = (dt / (orbitalPeriod * 60)) * 2 * Math.PI;
+        const currentPhase = Math.asin(baseLat / inc);
+        
+        const lat = inc * Math.sin(currentPhase + phase);
+        
+        // Longitudinal advance = orbit motion + earth rotation
+        const earthRot = (-360.0 / 86400.0) * dt;
+        const orbitAdv = (dt / (orbitalPeriod * 60)) * 360.0;
+        
+        let lon = baseLon + orbitAdv + earthRot;
+        lon = ((lon + 180) % 360 + 360) % 360 - 180;
+        
+        points.push([lon, lat]);
     }
 
     // Split at antimeridian to avoid horizontal wrap glitches in D3
@@ -238,17 +241,19 @@ const GroundTrack = (() => {
   function updateTerminator() {
     if (!g) return;
 
-    // Animate sun slowly over time for the demo
-    const timeRef = Date.now() / 10000;
-    const sunLon = (timeRef % 360) - 180;
-    const sunLat = 23.44 * Math.sin((timeRef / 365) * Math.PI * 2);
+    // Use simulation time for sun position
+    const now = AppState.state.simTime ? new Date(AppState.state.simTime) : new Date();
+    const startOfYear = new Date(now.getFullYear(), 0, 1);
+    const dayOfYear = (now - startOfYear) / 86400000;
+
+    // Simplified solar position
+    const sunLon = -((now.getUTCHours() + now.getUTCMinutes()/60 + now.getUTCSeconds()/3600) / 24) * 360 + 180;
+    const sunLat = 23.44 * Math.sin((2 * Math.PI * (dayOfYear - 80)) / 365.25);
 
     const nightSide = [];
     for (let lon = -180; lon <= 180; lon += 5) {
-      // Terminator calculation
       const phase = (lon - sunLon) * Math.PI / 180;
-      let termLat = -Math.atan(Math.cos(phase) * Math.tan(sunLat * Math.PI/180)) * 180/Math.PI;
-      // Clamp for numerical safety
+      let termLat = -Math.atan(Math.cos(phase) / Math.tan(sunLat * Math.PI/180)) * 180/Math.PI;
       termLat = Math.max(-89.9, Math.min(89.9, termLat));
       nightSide.push([lon, termLat]);
     }
@@ -264,7 +269,7 @@ const GroundTrack = (() => {
       .datum({type: 'Polygon', coordinates: [nightSide]})
       .attr('d', d3.geoPath().projection(projection))
       .attr('fill', 'rgba(0, 0, 0, 0.45)')
-      .attr('stroke', 'rgba(255, 100, 50, 0.25)'); // subtle eclipse glow
+      .attr('stroke', 'rgba(255, 100, 50, 0.25)');
   }
 
   return { init, resize, update };

@@ -152,7 +152,7 @@ async def simulation_step(body: dict = None):
             step_seconds = float(body["step_seconds"])
         except (TypeError, ValueError):
             step_seconds = 60
-    result = state.autonomy_engine.simulate_step(step_seconds)
+    result = state.simulate_step(step_seconds)
     if not isinstance(result, dict):
         result = {
             "status": "STEP_COMPLETE",
@@ -288,7 +288,7 @@ async def _handle_ws_message(websocket: WebSocket, msg: dict):
     elif msg_type == "command_maneuver":
         sat_id = msg.get("satellite_id")
         delta_v = msg.get("delta_v", {"x": 0, "y": 0, "z": 0})
-        result = state.execute_maneuver(sat_id, delta_v, 300.0)
+        result = state.execute_maneuver(sat_id, delta_v)
         await websocket.send_json({"type": "maneuver_result", "data": result})
 
     elif msg_type == "inject_threat":
@@ -313,7 +313,7 @@ async def _simulation_loop():
     while True:
         try:
             if state.sim_running:
-                state.autonomy_engine.simulate_step(state.step_seconds)
+                state.simulate_step(state.step_seconds)
             await asyncio.sleep(state.real_interval_ms / 1000.0)
         except asyncio.CancelledError:
             break

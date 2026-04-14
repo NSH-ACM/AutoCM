@@ -42,10 +42,9 @@ async def execute_maneuver(cmd: ManeuverCommand):
     result = state.execute_maneuver(
         sat_id=cmd.satellite_id,
         delta_v=cmd.delta_v.model_dump(),
-        burn_duration=cmd.burn_duration,
     )
-    if "error" in result:
-        raise HTTPException(status_code=400, detail=result["error"])
+    if result.get("status") == "ERROR":
+        raise HTTPException(status_code=400, detail=result.get("message", "Unknown error"))
     return result
 
 
@@ -89,7 +88,7 @@ async def schedule_evasion(cmd: ScheduleEvasionCommand):
 @router.get("/history")
 async def get_maneuver_history():
     """Get all maneuver records."""
-    return {"maneuvers": [m.to_dict() for m in state.maneuvers], "total_dv_ms": round(state.total_dv_ms, 3), "count": len(state.maneuvers)}
+    return {"maneuvers": [m.model_dump() for m in state.maneuvers]}
 
 
 @router.get("/history/{satellite_id}")

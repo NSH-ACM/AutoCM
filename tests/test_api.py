@@ -124,17 +124,26 @@ class TestMissionConstraints:
         sat = satellites[0]
         initial_fuel = sat.get("fuel_kg", 50)
 
-        response = client.post("/api/maneuvers/execute", json={
-            "satellite_id": sat["id"],
-            "delta_v": {"x": 0.01, "y": 0.0, "z": 0.0},
-            "burn_duration": 120,
-        })
+        # Use the Section 4 compliant scheduling endpoint
+        payload = {
+            "satelliteId": sat["id"],
+            "maneuver_sequence": [{
+                "burn_id": "TEST-BURN-001",
+                "burnTime": (datetime.now(timezone.utc) + timedelta(seconds=15)).isoformat(),
+                "deltaV_vector": {"x": 0.05, "y": 0.0, "z": 0.0}
+            }]
+        }
+        response = client.post("/api/maneuver/schedule", json=payload)
 
         if response.status_code == 200:
             data = response.json()
-            assert "fuel_remaining" in data
-            fuel_remaining = data["fuel_remaining"]
-            assert fuel_remaining < initial_fuel
+            # Simulation step to execute the maneuver
+            client.post("/api/simulation/step", json={"step_seconds": 60})
+            
+            # Fetch updated state
+            resp2 = client.get("/api/visualization/snapshot")
+            sat_after = next(s for s in resp2.json()["satellites"] if s["id"] == sat["id"])
+            assert sat_after["fuel_kg"] < initial_fuel
 
 
 class TestPhysicsValidation:

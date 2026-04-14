@@ -161,11 +161,26 @@ const Gantt = (() => {
     nowLine.attr('x1', nowX).attr('x2', nowX);
     g.select('.now-label').attr('x', nowX);
 
-    // Group maneuvers by satellite
+    // Group maneuvers by satellite and synthesize cooldown blocks
     const satMap = {};
     maneuvers.forEach(m => {
       if (!satMap[m.satelliteId]) satMap[m.satelliteId] = [];
-      satMap[m.satelliteId].push(m);
+      
+      const burnType = m.type || (m.burnId.includes('RECOVERY') ? 'RECOVERY BURN' : 'EVASION BURN');
+      satMap[m.satelliteId].push({
+        ...m,
+        type: burnType
+      });
+      
+      // Synthesize 600s cooldown block (Section 5.1 Requirement)
+      satMap[m.satelliteId].push({
+        burnId: `COOL-${m.burnId}`,
+        satelliteId: m.satelliteId,
+        burnTime: new Date(new Date(m.burnTime).getTime() + (m.duration || 180) * 1000).toISOString(),
+        duration: 600,
+        type: 'COOLDOWN',
+        status: 'PENDING'
+      });
     });
 
     const satIds = Object.keys(satMap).sort();
