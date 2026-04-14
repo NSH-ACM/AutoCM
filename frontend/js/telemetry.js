@@ -29,7 +29,7 @@ const Telemetry = (() => {
   let dvXScale = null;
   let dvYScale = null;
 
-  const MARGIN = { top: 16, right: 12, bottom: 28, left: 38 };
+  const MARGIN = { top: 20, right: 16, bottom: 32, left: 44 };
 
   // ── Init ──────────────────────────────────────────────────────────────────
   function init() {
@@ -65,7 +65,7 @@ const Telemetry = (() => {
       .call(d3.axisBottom(xScale).ticks(4).tickSize(-scatterHeight).tickFormat(''))
       .call(g => {
         g.select('.domain').remove();
-        g.selectAll('line').attr('stroke', '#0d1f33').attr('stroke-dasharray', '3,3');
+        g.selectAll('line').attr('stroke', '#21262d').attr('stroke-dasharray', '3,3');
       });
 
     // Grid lines (Y)
@@ -74,7 +74,7 @@ const Telemetry = (() => {
       .call(d3.axisLeft(yScale).ticks(3).tickSize(-scatterWidth).tickFormat(''))
       .call(g => {
         g.select('.domain').remove();
-        g.selectAll('line').attr('stroke', '#0d1f33').attr('stroke-dasharray', '3,3');
+        g.selectAll('line').attr('stroke', '#21262d').attr('stroke-dasharray', '3,3');
       });
 
     // X axis
@@ -83,10 +83,10 @@ const Telemetry = (() => {
       .attr('transform', `translate(0,${scatterHeight})`)
       .call(d3.axisBottom(xScale).ticks(4).tickFormat(d => d))
       .call(g => {
-        g.select('.domain').attr('stroke', '#1a3050');
-        g.selectAll('text').attr('fill', '#3a6a9a').attr('font-size', '7px')
+        g.select('.domain').attr('stroke', '#30363d');
+        g.selectAll('text').attr('fill', '#8b949e').attr('font-size', '10px')
           .attr('font-family', 'JetBrains Mono');
-        g.selectAll('line').attr('stroke', '#1a3050');
+        g.selectAll('line').attr('stroke', '#30363d');
       });
 
     // Y axis
@@ -94,29 +94,29 @@ const Telemetry = (() => {
       .attr('class', 'scatter-y-axis')
       .call(d3.axisLeft(yScale).ticks(3).tickFormat(d => d + 'kg'))
       .call(g => {
-        g.select('.domain').attr('stroke', '#1a3050');
-        g.selectAll('text').attr('fill', '#3a6a9a').attr('font-size', '7px')
+        g.select('.domain').attr('stroke', '#30363d');
+        g.selectAll('text').attr('fill', '#8b949e').attr('font-size', '10px')
           .attr('font-family', 'JetBrains Mono');
-        g.selectAll('line').attr('stroke', '#1a3050');
+        g.selectAll('line').attr('stroke', '#30363d');
       });
 
     // Axis labels
     scatterG.append('text')
       .attr('x', scatterWidth / 2)
-      .attr('y', scatterHeight + MARGIN.bottom - 4)
+      .attr('y', scatterHeight + MARGIN.bottom - 6)
       .attr('text-anchor', 'middle')
-      .attr('fill', '#3a6a9a')
-      .attr('font-size', '7px')
+      .attr('fill', '#8b949e')
+      .attr('font-size', '10px')
       .attr('font-family', 'JetBrains Mono')
       .text('COLLISIONS AVOIDED');
 
     scatterG.append('text')
       .attr('transform', `rotate(-90)`)
       .attr('x', -scatterHeight / 2)
-      .attr('y', -MARGIN.left + 10)
+      .attr('y', -MARGIN.left + 12)
       .attr('text-anchor', 'middle')
-      .attr('fill', '#3a6a9a')
-      .attr('font-size', '7px')
+      .attr('fill', '#8b949e')
+      .attr('font-size', '10px')
       .attr('font-family', 'JetBrains Mono')
       .text('FUEL (kg)');
 
@@ -178,27 +178,27 @@ const Telemetry = (() => {
     scatterG.select('.scatter-x-axis')
       .call(d3.axisBottom(xScale).ticks(4))
       .call(g => {
-        g.select('.domain').attr('stroke', '#1a3050');
-        g.selectAll('text').attr('fill', '#3a6a9a').attr('font-size', '7px')
+        g.select('.domain').attr('stroke', '#30363d');
+        g.selectAll('text').attr('fill', '#8b949e').attr('font-size', '10px')
           .attr('font-family', 'JetBrains Mono');
-        g.selectAll('line').attr('stroke', '#1a3050');
+        g.selectAll('line').attr('stroke', '#30363d');
       });
     scatterG.select('.scatter-y-axis')
       .call(d3.axisLeft(yScale).ticks(3).tickFormat(d => d.toFixed(1) + 'kg'))
       .call(g => {
-        g.select('.domain').attr('stroke', '#1a3050');
-        g.selectAll('text').attr('fill', '#3a6a9a').attr('font-size', '7px')
+        g.select('.domain').attr('stroke', '#30363d');
+        g.selectAll('text').attr('fill', '#8b949e').attr('font-size', '10px')
           .attr('font-family', 'JetBrains Mono');
-        g.selectAll('line').attr('stroke', '#1a3050');
+        g.selectAll('line').attr('stroke', '#30363d');
       });
 
     // Dot colour by status
     function dotColor(status) {
       switch (status) {
-        case 'EVADING':   return '#e74c3c';
-        case 'RECOVERING': return '#f39c12';
-        case 'EOL':       return '#5a5a6a';
-        default:          return '#2ecc71';
+        case 'EVADING':   return '#f85149';
+        case 'RECOVERING': return '#d29922';
+        case 'EOL':       return '#6e7681';
+        default:          return '#3fb950';
       }
     }
 
@@ -214,9 +214,9 @@ const Telemetry = (() => {
       .attr('cy', d => yScale(d.y))
       .attr('r', 0)
       .attr('fill', d => dotColor(d.status))
-      .attr('opacity', 0.8)
-      .attr('stroke', '#030810')
-      .attr('stroke-width', 0.5)
+      .attr('opacity', 0.9)
+      .attr('stroke', '#0d1117')
+      .attr('stroke-width', 1)
       .style('cursor', 'pointer')
       .on('click', (event, d) => {
         if (typeof AppState !== 'undefined') AppState.selectSatellite(d.id);
@@ -225,7 +225,7 @@ const Telemetry = (() => {
     enter.append('title')
       .text(d => `${d.id.replace('SAT-','')}\nFuel consumed: ${d.y.toFixed(2)} kg\nCollisions avoided: ${d.x}\nStatus: ${d.status}`);
 
-    enter.transition().duration(600).attr('r', 3.5);
+    enter.transition().duration(600).attr('r', 5);
 
     dots.transition().duration(400)
       .attr('cx', d => xScale(d.x))
@@ -295,7 +295,7 @@ const Telemetry = (() => {
       })
       .style('color', d => {
         const h = (new Date(d.tca) - now) / 3600000;
-        return h < 2 ? '#e74c3c' : h < 8 ? '#f39c12' : '#4a6a8a';
+        return h < 2 ? '#f85149' : h < 8 ? '#d29922' : '#8b949e';
       });
 
     merged.attr('class', d => {
@@ -313,7 +313,7 @@ const Telemetry = (() => {
 
     if (latEl) {
       latEl.textContent = latency + ' ms';
-      latEl.style.color = latency < 200 ? '#2ecc71' : latency < 500 ? '#f39c12' : '#e74c3c';
+      latEl.style.color = latency < 200 ? '#3fb950' : latency < 500 ? '#d29922' : '#f85149';
     }
     if (snapEl && timestamp) {
       snapEl.textContent = new Date(timestamp).toISOString().slice(11, 19) + 'Z';

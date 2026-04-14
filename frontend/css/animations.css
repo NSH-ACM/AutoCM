@@ -119,7 +119,7 @@
 }
 
 .glow-breathe {
-  animation: glow-breathe 4s ease-in-out infinite;
+  animation: none;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
@@ -135,21 +135,7 @@
 }
 
 .glass-shimmer::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(
-    110deg,
-    transparent 20%,
-    rgba(74, 158, 255, 0.015) 40%,
-    rgba(255, 255, 255, 0.02) 50%,
-    rgba(74, 158, 255, 0.015) 60%,
-    transparent 80%
-  );
-  background-size: 300% 100%;
-  animation: glass-shimmer 8s ease-in-out infinite;
-  pointer-events: none;
-  z-index: 1;
+  display: none;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
@@ -186,16 +172,11 @@
 }
 
 .glitch-text::before {
-  color: #ff0040;
-  animation: glitch-1 4s infinite linear;
-  opacity: 0.15;
+  display: none;
 }
 
 .glitch-text::after {
-  color: #00ffff;
-  animation: glitch-2 4s infinite linear;
-  animation-delay: 0.1s;
-  opacity: 0.15;
+  display: none;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
@@ -296,13 +277,8 @@
 }
 
 .shimmer {
-  background: linear-gradient(90deg,
-    transparent 25%,
-    rgba(74, 158, 255, 0.05) 50%,
-    transparent 75%
-  );
-  background-size: 200% 100%;
-  animation: shimmer 3s ease-in-out infinite;
+  background: var(--bg-secondary);
+  animation: none;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
@@ -427,5 +403,5 @@
 }
 
 .aurora-glow {
-  animation: aurora-shift 12s ease-in-out infinite;
+  animation: none;
 }

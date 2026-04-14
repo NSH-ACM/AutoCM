@@ -22,9 +22,9 @@
   <script src="https://cdn.jsdelivr.net/npm/topojson-client@3/dist/topojson-client.min.js"></script>
 
   <!-- Design System -->
-  <link rel="stylesheet" href="css/main.css?v=2">
-  <link rel="stylesheet" href="css/panels.css?v=2">
-  <link rel="stylesheet" href="css/animations.css?v=2">
+  <link rel="stylesheet" href="css/main.css?v=3">
+  <link rel="stylesheet" href="css/panels.css?v=3">
+  <link rel="stylesheet" href="css/animations.css?v=3">
 </head>
 <body>
 
@@ -55,7 +55,7 @@
     <!-- TOP BAR -->
     <header id="topbar">
       <div class="topbar-left">
-        <span class="topbar-logo glitch-text" data-text="ORBITAL INSIGHT">ORBITAL INSIGHT</span>
+        <span class="topbar-logo">ORBITAL INSIGHT</span>
         <span class="topbar-separator">|</span>
         <span class="topbar-mission">ACM // CONSTELLATION-1</span>
       </div>
@@ -66,13 +66,23 @@
       </div>
 
       <div class="topbar-right">
+        <div class="view-toggle-group">
+          <button id="mode-projection" class="view-toggle-btn active">
+            <i data-lucide="globe"></i>
+            <span>Projection</span>
+          </button>
+          <button id="mode-charts" class="view-toggle-btn">
+            <i data-lucide="bar-chart-2"></i>
+            <span>Charts</span>
+          </button>
+        </div>
+        <div class="map-toggle-group">
+          <button id="toggle-3d" class="map-toggle-btn">3D</button>
+          <button id="toggle-2d" class="map-toggle-btn active">2D</button>
+        </div>
         <div class="stat-chip" id="chip-sats">
           <span class="label">ACTIVE SATS</span>
           <span class="value text-blue" id="stat-sats">0</span>
-        </div>
-        <div class="stat-chip" id="chip-debris">
-          <span class="label">DEBRIS</span>
-          <span class="value text-blue" id="stat-debris">0</span>
         </div>
         <div class="stat-chip" id="chip-cdms">
           <span class="label">CRITICAL CDMS</span>
@@ -81,10 +91,6 @@
         <div class="stat-chip" id="chip-uptime">
           <span class="label">FLEET UPTIME</span>
           <span class="value text-green" id="stat-uptime">—</span>
-        </div>
-        <div class="stat-chip" id="chip-fuel">
-          <span class="label">AVG FUEL</span>
-          <span class="value text-green" id="stat-fuel">—</span>
         </div>
         <div class="stat-chip" id="chip-alerts">
           <span class="label">ALERTS</span>
@@ -116,123 +122,134 @@
             <div class="sat-field"><span class="label">FUEL</span><span class="value"></span></div>
             <div class="sat-field"><span class="label">LAST BURN</span><span class="value"></span></div>
           </div>
-          <div class="map-toggle">
-            <button id="toggle-3d" class="map-toggle-btn">3D</button>
-            <button id="toggle-2d" class="map-toggle-btn active">2D</button>
-          </div>
         </div>
       </div><!-- /projection-view -->
 
       <!-- CHARTS MODE VIEW -->
       <div id="charts-view" class="view-container">
-        <!-- CHARTS SPLIT LAYOUT -->
-        <div id="charts-split" class="split-vertical" style="height: 100%; width: 100%;">
+        <div id="charts-main" style="display: flex; height: 100%; gap: 12px;">
+          
+          <!-- MAIN SPEC FEATURES -->
+          <div id="charts-spec" style="flex: 1; display: flex; flex-direction: column; gap: 12px;">
+            <!-- ROW 1: Bullseye + Fuel -->
+            <div id="chart-row-1" class="split-horizontal" style="flex: 1;">
+              <!-- Conjunction Bullseye -->
+              <div id="bullseye-panel" class="panel glass-panel">
+                <div class="panel-content">
+                  <div id="bullseye-header">
+                    <div class="panel-title">
+                      <i data-lucide="target"></i>
+                      CONJUNCTION BULLSEYE
+                    </div>
+                    <span id="bullseye-sat-id">—</span>
+                  </div>
+                  <div id="bullseye-svg-container">
+                    <svg id="bullseye-svg"></svg>
+                  </div>
+                </div>
+              </div>
 
-          <!-- ROW 1 -->
-          <div id="chart-row-1" class="split-horizontal">
-            <!-- Conjunction Bullseye -->
-            <div id="bullseye-panel" class="panel glass-panel">
-              <div class="panel-content">
-                <div id="bullseye-header">
+              <!-- Fuel Gauges -->
+              <div id="fuel-panel" class="panel glass-panel">
+                <div class="panel-content">
                   <div class="panel-title">
-                    <i data-lucide="target"></i>
-                    CONJUNCTION BULLSEYE
+                    <i data-lucide="fuel"></i>
+                    FUEL STATUS
                   </div>
-                  <span id="bullseye-sat-id">—</span>
-                </div>
-                <div id="bullseye-svg-container">
-                  <svg id="bullseye-svg"></svg>
+                  <div id="fuel-list"></div>
                 </div>
               </div>
             </div>
 
-            <!-- Fuel Gauges -->
-            <div id="fuel-panel" class="panel glass-panel">
-              <div class="panel-content">
-                <div class="panel-title">
-                  <i data-lucide="fuel"></i>
-                  FUEL STATUS
+            <!-- ROW 2: Gantt + Telemetry -->
+            <div id="chart-row-2" class="split-horizontal" style="flex: 1;">
+              <!-- Maneuver Gantt -->
+              <div id="gantt-panel" class="panel glass-panel">
+                <div class="panel-content">
+                  <div class="panel-title">
+                    <i data-lucide="calendar-clock"></i>
+                    MANEUVER TIMELINE
+                  </div>
+                  <div id="gantt-svg-container">
+                    <svg id="gantt-svg"></svg>
+                  </div>
+                  <div class="gantt-tooltip" id="gantt-tooltip"></div>
                 </div>
-                <div id="fuel-list"></div>
+              </div>
+
+              <!-- Telemetry / CDM / ΔV -->
+              <div id="telemetry-panel" class="panel glass-panel">
+                <div class="panel-content telemetry-content">
+                  <div class="panel-title">
+                    <i data-lucide="alert-triangle"></i>
+                    LATEST CDMS
+                  </div>
+                  <div class="cdm-section" id="cdm-list"></div>
+
+                  <div class="dv-section">
+                    <div class="dv-section-header">
+                      <i data-lucide="scatter-chart"></i>
+                      ΔV COST ANALYSIS — FUEL vs COLLISIONS AVOIDED
+                    </div>
+                    <svg id="dv-chart"></svg>
+                    <div class="dv-annotation">
+                      <span>Per satellite · click dot to select</span>
+                      <span class="dv-total" id="dv-total">—</span>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
 
-          <!-- ROW 2 -->
-          <div id="chart-row-2" class="split-horizontal">
-            <!-- Maneuver Gantt -->
-            <div id="gantt-panel" class="panel glass-panel">
-              <div class="panel-content">
-                <div class="panel-title">
-                  <i data-lucide="calendar-clock"></i>
-                  MANEUVER TIMELINE
+          <!-- COLLAPSIBLE SIDEBAR: Extra Features -->
+          <div id="extras-sidebar" class="panel glass-panel" style="width: 280px; flex-shrink: 0;">
+            <div class="panel-content">
+              <div class="extras-header" style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+                <div class="panel-title" style="font-size: 11px;">
+                  <i data-lucide="more-horizontal"></i>
+                  EXTRA FEATURES
                 </div>
-                <div id="gantt-svg-container">
-                  <svg id="gantt-svg"></svg>
-                </div>
-                <div class="gantt-tooltip" id="gantt-tooltip"></div>
+                <button id="toggle-extras" class="extras-toggle-btn">
+                  <i data-lucide="chevron-down"></i>
+                </button>
               </div>
-            </div>
-
-            <!-- Mission Alerts Feed (Moved up to pair with Gantt) -->
-            <div id="alerts-panel" class="panel glass-panel">
-              <div class="panel-content">
-                <div class="panel-title panel-title-alerts">
-                  <span class="panel-title-left">
-                    <i data-lucide="bell"></i>
-                    MISSION ALERTS
-                  </span>
-                  <span id="alert-count-badge" class="alert-count-badge">0</span>
-                </div>
-                <div id="alert-list"></div>
-              </div>
-            </div>
-          </div>
-
-          <!-- ROW 3 -->
-          <div id="chart-row-3" style="display: flex;">
-            <!-- Telemetry / CDM / Health -->
-            <div id="telemetry-panel" class="panel glass-panel" style="flex: 1; width: 100%;">
-              <div class="panel-content telemetry-content">
-                <div class="panel-title">
-                  <i data-lucide="alert-triangle"></i>
-                  LATEST CDMS
-                </div>
-                <div class="cdm-section" id="cdm-list"></div>
-
-                <div class="dv-section">
-                  <div class="dv-section-header">
-                    <i data-lucide="scatter-chart"></i>
-                    ΔV COST ANALYSIS — FUEL vs COLLISIONS AVOIDED
+              
+              <div id="extras-content" style="display: flex; flex-direction: column; gap: 12px;">
+                <!-- Mission Alerts Feed -->
+                <div id="alerts-panel" class="extras-section">
+                  <div class="panel-title panel-title-alerts" style="font-size: 10px;">
+                    <span class="panel-title-left">
+                      <i data-lucide="bell"></i>
+                      MISSION ALERTS
+                    </span>
+                    <span id="alert-count-badge" class="alert-count-badge">0</span>
                   </div>
-                  <svg id="dv-chart"></svg>
-                  <div class="dv-annotation">
-                    <span>Per satellite · click dot to select</span>
-                    <span class="dv-total" id="dv-total">—</span>
-                  </div>
+                  <div id="alert-list" style="max-height: 200px; overflow-y: auto;"></div>
                 </div>
 
+                <!-- System Health -->
                 <div class="health-section">
-                  <div class="health-section-header">
+                  <div class="health-section-header" style="font-size: 10px;">
                     <i data-lucide="activity"></i>
                     SYSTEM HEALTH
                   </div>
-                  <div class="health-grid">
+                  <div class="health-grid" style="grid-template-columns: 1fr;">
                     <div class="health-item">
-                      <span class="label">API LATENCY</span>
-                      <span class="value text-green" id="health-latency">—</span>
+                      <span class="label" style="font-size: 9px;">API LATENCY</span>
+                      <span class="value text-green" id="health-latency" style="font-size: 10px;">—</span>
                     </div>
                     <div class="health-item">
-                      <span class="label">INGESTION RATE</span>
-                      <span class="value text-blue" id="health-ingestion">—</span>
+                      <span class="label" style="font-size: 9px;">INGESTION RATE</span>
+                      <span class="value text-blue" id="health-ingestion" style="font-size: 10px;">—</span>
                     </div>
                     <div class="health-item">
-                      <span class="label">PHYSICS ENGINE</span>
-                      <span class="value text-amber" id="health-physics">—</span>
+                      <span class="label" style="font-size: 9px;">PHYSICS ENGINE</span>
+                      <span class="value text-amber" id="health-physics" style="font-size: 10px;">—</span>
                     </div>
                     <div class="health-item">
-                      <span class="label">LAST SNAPSHOT</span>
-                      <span class="value" id="health-snapshot">—</span>
+                      <span class="label" style="font-size: 9px;">LAST SNAPSHOT</span>
+                      <span class="value" id="health-snapshot" style="font-size: 10px;">—</span>
                     </div>
                   </div>
                 </div>
@@ -240,23 +257,8 @@
             </div>
           </div>
 
-        </div><!-- /charts-split -->
-      </div><!-- /charts-view -->
-
-      <!-- RIGHT SIDE PANEL -->
-      <aside id="side-panel" class="side-panel">
-        <div class="side-panel-header">Views</div>
-        <div class="side-panel-content">
-          <button id="mode-projection" class="side-btn active">
-            <i data-lucide="globe"></i>
-            <span>Projection</span>
-          </button>
-          <button id="mode-charts" class="side-btn">
-            <i data-lucide="bar-chart-2"></i>
-            <span>Charts</span>
-          </button>
         </div>
-      </aside>
+      </div><!-- /charts-view -->
 
     </main><!-- /main-content -->
 
@@ -279,19 +281,19 @@
   </div>
 
   <!-- JS modules — order matters for globals -->
-  <script src="js/state.js"></script>
-  <script src="js/api.js"></script>
-  <script src="js/ws_telemetry.js"></script>
-  <script src="js/globe.js"></script>
-  <script src="js/groundTrack.js"></script>
-  <script src="js/bullseye.js"></script>
-  <script src="js/fuel.js"></script>
-  <script src="js/gantt.js"></script>
-  <script src="js/telemetry.js"></script>
-  <script src="js/alerts.js"></script>
-  <script src="js/speedControl.js"></script>
-  <script src="js/drawer.js"></script>
-  <script src="js/viewMode.js"></script>
-  <script src="js/main.js"></script>
+  <script src="js/state.js?v=3"></script>
+  <script src="js/api.js?v=3"></script>
+  <script src="js/ws_telemetry.js?v=3"></script>
+  <script src="js/globe.js?v=4"></script>
+  <script src="js/groundTrack.js?v=3"></script>
+  <script src="js/bullseye.js?v=3"></script>
+  <script src="js/fuel.js?v=3"></script>
+  <script src="js/gantt.js?v=3"></script>
+  <script src="js/telemetry.js?v=3"></script>
+  <script src="js/alerts.js?v=3"></script>
+  <script src="js/speedControl.js?v=3"></script>
+  <script src="js/drawer.js?v=3"></script>
+  <script src="js/viewMode.js?v=3"></script>
+  <script src="js/main.js?v=3"></script>
 </body>
 </html>

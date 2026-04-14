@@ -94,17 +94,17 @@ const GroundTrack = (() => {
       g.append('path')
         .datum({ type: 'Sphere' })
         .attr('d', path)
-        .attr('fill', 'rgba(10,20,40,0.6)')
+        .attr('fill', '#0d1117')
         .attr('stroke', 'none');
 
       // Country fills
       g.append('path')
         .datum(countries)
         .attr('d', path)
-        .attr('fill', 'rgba(40,80,140,0.18)')
-        .attr('stroke', '#2a5090')
-        .attr('stroke-width', 0.6)
-        .attr('opacity', 0.85);
+        .attr('fill', '#161b22')
+        .attr('stroke', '#30363d')
+        .attr('stroke-width', 1)
+        .attr('opacity', 0.9);
 
       // Country borders
       const borders = topojson.mesh(topoData, topoData.objects.countries, (a, b) => a !== b);
@@ -112,8 +112,8 @@ const GroundTrack = (() => {
         .datum(borders)
         .attr('d', path)
         .attr('fill', 'none')
-        .attr('stroke', '#1a3060')
-        .attr('stroke-width', 0.4);
+        .attr('stroke', '#30363d')
+        .attr('stroke-width', 0.8);
 
       worldLoaded = true;
 
@@ -129,20 +129,20 @@ const GroundTrack = (() => {
     g.append('rect')
       .attr('width', width)
       .attr('height', height)
-      .attr('fill', '#030810');
+      .attr('fill', '#0d1117');
   }
 
   function _drawGraticule() {
-    const graticule = d3.geoGraticule().step([15, 15]);
+    const graticule = d3.geoGraticule().step([30, 30]);
     const path = d3.geoPath().projection(projection);
     g.append('path')
       .datum(graticule())
       .attr('class', 'graticule')
       .attr('d', path)
       .attr('fill', 'none')
-      .attr('stroke', '#0d1f33')
-      .attr('stroke-width', 0.5)
-      .attr('opacity', 0.5);
+      .attr('stroke', '#21262d')
+      .attr('stroke-width', 0.8)
+      .attr('opacity', 0.6);
   }
 
   function _drawStaticLines() {
@@ -153,8 +153,8 @@ const GroundTrack = (() => {
       .datum({ type: 'LineString', coordinates: [[-180, 0], [0, 0], [180, 0]] })
       .attr('d', path)
       .attr('fill', 'none')
-      .attr('stroke', '#1a4a8a')
-      .attr('stroke-width', 1)
+      .attr('stroke', '#58a6ff')
+      .attr('stroke-width', 1.2)
       .attr('opacity', 0.5);
 
     // Prime Meridian
@@ -162,8 +162,8 @@ const GroundTrack = (() => {
       .datum({ type: 'LineString', coordinates: [[0, -85], [0, 85]] })
       .attr('d', path)
       .attr('fill', 'none')
-      .attr('stroke', '#1a4a8a')
-      .attr('stroke-width', 1)
+      .attr('stroke', '#58a6ff')
+      .attr('stroke-width', 1.2)
       .attr('opacity', 0.5);
 
     // Terminator placeholder (above land, below satellite markers)
@@ -186,9 +186,9 @@ const GroundTrack = (() => {
     g.append('path')
       .datum({ type: 'Sphere' })
       .attr('d', d3.geoPath().projection(projection))
-      .attr('fill', 'rgba(10,25,50,0.5)')
-      .attr('stroke', '#1a3060')
-      .attr('stroke-width', 0.5);
+      .attr('fill', '#161b22')
+      .attr('stroke', '#30363d')
+      .attr('stroke-width', 1);
 
     worldLoaded = true;
     _ensureTerminatorElement();
@@ -236,7 +236,8 @@ const GroundTrack = (() => {
     terminatorNight
       .datum({ type: 'Polygon', coordinates: [nightSide] })
       .attr('d', path)
-      .attr('fill', 'rgba(0,0,0,0.42)')
+      .attr('fill', '#000000')
+      .attr('fill-opacity', 0.5)
       .attr('stroke', 'none');
 
     // Glowing edge line
@@ -244,7 +245,8 @@ const GroundTrack = (() => {
       .datum({ type: 'LineString', coordinates: termPts })
       .attr('d', path)
       .attr('fill', 'none')
-      .attr('stroke', 'rgba(255,140,60,0.35)')
+      .attr('stroke', '#d29922')
+      .attr('stroke-opacity', 0.6)
       .attr('stroke-width', 2)
       .attr('stroke-dasharray', '6,3');
   }
@@ -275,8 +277,9 @@ const GroundTrack = (() => {
         .datum(histFeature)
         .attr('d', path)
         .attr('fill', 'none')
-        .attr('stroke', isSelected ? '#4a9eff' : 'rgba(74,158,255,0.3)')
-        .attr('stroke-width', isSelected ? 1.5 : 0.8)
+        .attr('stroke', isSelected ? '#58a6ff' : '#58a6ff')
+        .attr('stroke-opacity', isSelected ? 0.8 : 0.3)
+        .attr('stroke-width', isSelected ? 2 : 1.2)
         .attr('opacity', isSelected ? 0.8 : 0.4);
 
       // ── Predicted trajectory (90 min) — dashed ──
@@ -286,8 +289,9 @@ const GroundTrack = (() => {
         .datum(predFeature)
         .attr('d', path)
         .attr('fill', 'none')
-        .attr('stroke', isSelected ? '#f39c12' : 'rgba(243,156,18,0.25)')
-        .attr('stroke-width', isSelected ? 1.5 : 0.7)
+        .attr('stroke', isSelected ? '#d29922' : '#d29922')
+        .attr('stroke-opacity', isSelected ? 0.85 : 0.25)
+        .attr('stroke-width', isSelected ? 2 : 1.2)
         .attr('stroke-dasharray', '5,3')
         .attr('opacity', isSelected ? 0.85 : 0.35);
 
@@ -298,29 +302,29 @@ const GroundTrack = (() => {
           .attr('class', 'sat-pulse')
           .attr('cx', cx)
           .attr('cy', cy)
-          .attr('r', isSelected ? 14 : 10)
+          .attr('r', isSelected ? 16 : 12)
           .attr('fill', 'none')
-          .attr('stroke', isEvading ? '#e74c3c' : '#4a9eff')
-          .attr('stroke-width', 1)
-          .attr('opacity', 0.4);
+          .attr('stroke', isEvading ? '#f85149' : '#58a6ff')
+          .attr('stroke-width', 1.5)
+          .attr('opacity', 0.5);
       }
 
       // ── Marker ──
       const [mx, my] = projection([sat.lon, sat.lat]) || [0, 0];
-      const markerColor = sat.status === 'EOL'      ? '#5a5a5a'
-                        : sat.status === 'EVADING'  ? '#e74c3c'
-                        : sat.status === 'RECOVERING' ? '#f39c12'
+      const markerColor = sat.status === 'EOL'      ? '#6e7681'
+                        : sat.status === 'EVADING'  ? '#f85149'
+                        : sat.status === 'RECOVERING' ? '#d29922'
                         : isSelected               ? '#ffffff'
-                        : '#2ecc71';
+                        : '#3fb950';
 
       g.append('circle')
         .attr('class', 'sat-marker')
         .attr('cx', mx)
         .attr('cy', my)
-        .attr('r', isSelected ? 5 : 3.5)
+        .attr('r', isSelected ? 6 : 4)
         .attr('fill', markerColor)
-        .attr('stroke', isSelected ? '#4a9eff' : 'rgba(0,0,0,0.5)')
-        .attr('stroke-width', isSelected ? 1.5 : 0.5)
+        .attr('stroke', isSelected ? '#58a6ff' : '#0d1117')
+        .attr('stroke-width', isSelected ? 2 : 1)
         .style('cursor', 'pointer')
         .on('click', (event) => {
           event.stopPropagation();
@@ -334,10 +338,10 @@ const GroundTrack = (() => {
       if (isSelected) {
         g.append('text')
           .attr('class', 'sat-label')
-          .attr('x', mx + 8)
-          .attr('y', my - 6)
-          .attr('fill', '#4a9eff')
-          .attr('font-size', '9px')
+          .attr('x', mx + 10)
+          .attr('y', my - 8)
+          .attr('fill', '#58a6ff')
+          .attr('font-size', '12px')
           .attr('font-family', 'JetBrains Mono, monospace')
           .text(sat.id.replace('SAT-', ''));
       }
@@ -362,8 +366,12 @@ const GroundTrack = (() => {
 
     // Batch render by altitude colour band (greens = lower LEO, blues = higher)
     // _debrisData format: [id, lat, lon, alt_km]
-    ctx.globalAlpha = 0.55;
-    for (let i = 0; i < len; i++) {
+    // Limit debris for clarity: show max 2000 particles
+    const maxDebris = 2000;
+    const displayLen = Math.min(len, maxDebris);
+    
+    ctx.globalAlpha = 0.6;
+    for (let i = 0; i < displayLen; i++) {
       const d = _debrisData[i];
       const lat = d[1], lon = d[2], alt = d[3];
       const pt  = projection([lon, lat]);
@@ -380,7 +388,7 @@ const GroundTrack = (() => {
       }
 
       ctx.fillStyle = `rgb(${r},${g2},${b})`;
-      ctx.fillRect(pt[0] - 0.5, pt[1] - 0.5, 1.5, 1.5);
+      ctx.fillRect(pt[0] - 0.5, pt[1] - 0.5, 2, 2);
     }
     ctx.globalAlpha = 1.0;
     _scheduleDebrisFrame();
@@ -392,7 +400,7 @@ const GroundTrack = (() => {
 
   // ── Orbit Trail Generator ─────────────────────────────────────────────────
   function _orbitTrail(baseLon, baseLat, minutes) {
-    const numPts   = 80;
+    const numPts   = 60;
     const period   = 95.0;      // minutes — typical LEO
     const inc      = 53.0;      // degrees inclination
     const direction = minutes < 0 ? -1 : 1;

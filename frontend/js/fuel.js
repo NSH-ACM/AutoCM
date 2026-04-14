@@ -13,8 +13,8 @@ const FuelPanel = (() => {
   const INITIAL_FUEL = 50.0; // kg — nominal full tank
 
   // Gauge geometry
-  const GAUGE_R  = 14;      // arc radius (px)
-  const GAUGE_SW = 4;       // stroke-width
+  const GAUGE_R  = 18;      // arc radius (px)
+  const GAUGE_SW = 5;       // stroke-width
   const GAUGE_SIZE = (GAUGE_R + GAUGE_SW) * 2 + 2; // svg width/height
   const BG_DASH  = 2 * Math.PI * GAUGE_R;
 
@@ -62,7 +62,7 @@ const FuelPanel = (() => {
       .attr('cx', cx).attr('cy', cy)
       .attr('r', GAUGE_R)
       .attr('fill', 'none')
-      .attr('stroke', '#0d1f33')
+      .attr('stroke', '#30363d')
       .attr('stroke-width', GAUGE_SW);
 
     // Foreground arc
@@ -83,7 +83,7 @@ const FuelPanel = (() => {
       .attr('text-anchor', 'middle')
       .attr('dominant-baseline', 'central')
       .attr('font-family', 'JetBrains Mono, monospace')
-      .attr('font-size', '5.5px');
+      .attr('font-size', '8px');
 
     // Label section
     const info = enter.append('div').attr('class', 'fuel-info');
@@ -108,10 +108,10 @@ const FuelPanel = (() => {
 
     merged.each(function(d) {
       const pct   = d.status === 'EOL' ? 0 : Math.min(100, Math.max(0, (d.fuel_kg / INITIAL_FUEL) * 100));
-      const color = d.status === 'EOL' ? '#5a5a6a'
-                  : pct < 20           ? '#e74c3c'
-                  : pct < 50           ? '#f39c12'
-                  : '#2ecc71';
+      const color = d.status === 'EOL' ? '#6e7681'
+                  : pct < 20           ? '#f85149'
+                  : pct < 50           ? '#d29922'
+                  : '#3fb950';
 
       const el = d3.select(this);
 
@@ -130,7 +130,7 @@ const FuelPanel = (() => {
 
       el.select('.fuel-sat-id')
         .text(d.id.replace('SAT-', ''))
-        .style('color', d.id === AppState?.state?.selectedSatelliteId ? '#4a9eff' : '#8aa0b8');
+        .style('color', d.id === AppState?.state?.selectedSatelliteId ? '#58a6ff' : '#8b949e');
 
       el.select('.fuel-status-badge')
         .text(d.status)

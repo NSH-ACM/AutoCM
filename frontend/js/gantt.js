@@ -24,14 +24,14 @@ const Gantt = (() => {
   let zoom = null;
   let _currentXScale = null; // tracks zoomed scale
 
-  const MARGIN     = { top: 20, right: 12, bottom: 4, left: 72 };
-  const ROW_HEIGHT = 24;
+  const MARGIN     = { top: 24, right: 16, bottom: 8, left: 80 };
+  const ROW_HEIGHT = 30;
 
   const BLOCK_COLORS = {
-    'EVASION BURN':   { fill: '#0d2a5a', stroke: '#4a9eff', label: 'EVA' },
-    'COOLDOWN':       { fill: 'url(#cooldown-pattern)', stroke: '#f39c12', label: 'COOL' },
-    'RECOVERY BURN':  { fill: '#0a2a1a', stroke: '#1abc9c', label: 'REC' },
-    'GRAVEYARD BURN': { fill: '#2a0808', stroke: '#e74c3c', label: 'EOL' },
+    'EVASION BURN':   { fill: '#0d2a5a', stroke: '#58a6ff', label: 'EVA' },
+    'COOLDOWN':       { fill: 'url(#cooldown-pattern)', stroke: '#d29922', label: 'COOL' },
+    'RECOVERY BURN':  { fill: '#0a2a1a', stroke: '#3fb950', label: 'REC' },
+    'GRAVEYARD BURN': { fill: '#2a0808', stroke: '#f85149', label: 'EOL' },
   };
 
   const CONFLICT_FILL   = 'url(#conflict-pattern)';
@@ -85,17 +85,17 @@ const Gantt = (() => {
     nowLine = g.append('line')
       .attr('class', 'now-line')
       .attr('y1', 0).attr('y2', height)
-      .attr('stroke', '#e74c3c')
-      .attr('stroke-width', 1.5)
+      .attr('stroke', '#f85149')
+      .attr('stroke-width', 2)
       .attr('stroke-dasharray', '4,2');
 
     g.append('text')
       .attr('class', 'now-label')
-      .attr('fill', '#e74c3c')
-      .attr('font-size', '8px')
+      .attr('fill', '#f85149')
+      .attr('font-size', '11px')
       .attr('font-family', 'JetBrains Mono, monospace')
       .attr('text-anchor', 'middle')
-      .attr('y', -6)
+      .attr('y', -8)
       .text('NOW');
 
     // Groups
@@ -134,7 +134,7 @@ const Gantt = (() => {
       .attr('patternTransform', 'rotate(45)');
     cdPat.append('rect').attr('width', 4).attr('height', 8).attr('fill', '#1a0e02');
     cdPat.append('rect').attr('x', 4).attr('width', 4).attr('height', 8)
-      .attr('fill', 'rgba(243,156,18,0.2)');
+      .attr('fill', '#d29922');
 
     // Conflict red hatching
     const cfPat = defs.append('pattern')
@@ -142,18 +142,18 @@ const Gantt = (() => {
       .attr('patternUnits', 'userSpaceOnUse')
       .attr('width', 6).attr('height', 6)
       .attr('patternTransform', 'rotate(-45)');
-    cfPat.append('rect').attr('width', 3).attr('height', 6).attr('fill', 'rgba(231,76,60,0.5)');
+    cfPat.append('rect').attr('width', 3).attr('height', 6).attr('fill', '#f85149');
     cfPat.append('rect').attr('x', 3).attr('width', 3).attr('height', 6)
-      .attr('fill', 'rgba(150,10,10,0.3)');
+      .attr('fill', '#a02020');
   }
 
   function _styleAxis(axG) {
     axG.selectAll('text')
-      .attr('fill', '#4a6a8a')
-      .attr('font-size', '8px')
+      .attr('fill', '#8b949e')
+      .attr('font-size', '11px')
       .attr('font-family', 'JetBrains Mono, monospace');
-    axG.selectAll('line').attr('stroke', '#0d1f33').attr('stroke-width', 0.5);
-    axG.select('.domain').attr('stroke', '#0d1f33');
+    axG.selectAll('line').attr('stroke', '#30363d').attr('stroke-width', 1);
+    axG.select('.domain').attr('stroke', '#30363d');
   }
 
   // ── Conflict & Blackout Detection ─────────────────────────────────────────
@@ -253,8 +253,8 @@ const Gantt = (() => {
       .merge(bands)
       .attr('x', 0).attr('width', width)
       .attr('y', (d, i) => i * ROW_HEIGHT)
-      .attr('height', ROW_HEIGHT - 1)
-      .attr('fill', (d, i) => i % 2 === 0 ? 'rgba(13,31,60,0.2)' : 'transparent')
+      .attr('height', ROW_HEIGHT - 2)
+      .attr('fill', (d, i) => i % 2 === 0 ? '#161b22' : 'transparent')
       .attr('opacity', 0.7);
 
     bands.exit().remove();
@@ -267,10 +267,10 @@ const Gantt = (() => {
     labels.enter().append('text')
       .attr('class', 'gantt-row-label')
       .merge(labels)
-      .attr('x', -6)
+      .attr('x', -8)
       .attr('y', (d, i) => i * ROW_HEIGHT + ROW_HEIGHT / 2)
-      .attr('fill', '#3a6a8a')
-      .attr('font-size', '8px')
+      .attr('fill', '#8b949e')
+      .attr('font-size', '11px')
       .attr('font-family', 'JetBrains Mono, monospace')
       .attr('text-anchor', 'end')
       .attr('dominant-baseline', 'central')
@@ -304,20 +304,20 @@ const Gantt = (() => {
       .append('g')
       .attr('class', 'gantt-block');
 
-    enter.append('rect').attr('class', 'gantt-block-bg').attr('height', ROW_HEIGHT - 5).attr('rx', 2);
+    enter.append('rect').attr('class', 'gantt-block-bg').attr('height', ROW_HEIGHT - 8).attr('rx', 3);
     enter.append('text').attr('class', 'gantt-block-label')
       .attr('dominant-baseline', 'central')
-      .attr('font-size', '7px')
+      .attr('font-size', '11px')
       .attr('font-family', 'JetBrains Mono, monospace')
-      .attr('fill', '#c0d8ff')
+      .attr('fill', '#e6edf3')
       .attr('text-anchor', 'middle');
 
     // Conflict/blackout warning icon
     enter.append('text').attr('class', 'gantt-warn-icon')
-      .attr('font-size', '9px')
+      .attr('font-size', '12px')
       .attr('dominant-baseline', 'central')
       .attr('text-anchor', 'middle')
-      .attr('fill', '#e74c3c');
+      .attr('fill', '#f85149');
 
     const merged = enter.merge(blocks);
 
@@ -334,7 +334,7 @@ const Gantt = (() => {
       const h = ROW_HEIGHT - 5;
 
       const fillColor = d.isConflict ? CONFLICT_FILL
-                      : d.isBlackout  ? 'rgba(231,76,60,0.3)'
+                      : d.isBlackout  ? '#f85149'
                       : colors.fill;
 
       const strokeColor = d.isConflict ? '#ff2020'
@@ -346,13 +346,13 @@ const Gantt = (() => {
         .attr('width', w)
         .attr('fill', fillColor)
         .attr('stroke', strokeColor)
-        .attr('stroke-width', d.isConflict || d.isBlackout ? 1.5 : 1)
-        .attr('opacity', d.status === 'EXECUTED' ? 0.45 : 1);
+        .attr('stroke-width', d.isConflict || d.isBlackout ? 2 : 1.5)
+        .attr('opacity', d.status === 'EXECUTED' ? 0.5 : 1);
 
       grp.select('.gantt-block-label')
         .attr('x', x + w / 2)
         .attr('y', y + h / 2)
-        .text(w > 20 ? colors.label : '');
+        .text(w > 30 ? colors.label : '');
 
       grp.select('.gantt-warn-icon')
         .attr('x', x + w / 2)
@@ -371,13 +371,13 @@ const Gantt = (() => {
           : 0;
         const flagStr = d.isConflict ? ' ⚠ CONFLICT' : d.isBlackout ? ' 🚫 BLACKOUT' : '';
         tooltipEl.innerHTML = `
-          <div style="color:#4a9eff;font-weight:600;margin-bottom:4px">${d.burnId}${flagStr}</div>
-          <div><span style="color:#4a6a8a">TYPE</span>   ${d.type}</div>
-          <div><span style="color:#4a6a8a">START</span>  ${burnStart.toISOString().slice(11,19)}Z</div>
-          <div><span style="color:#4a6a8a">DUR</span>    ${d.duration || 180}s</div>
-          <div><span style="color:#4a6a8a">ΔV</span>     ${dvMag.toFixed(2)} m/s</div>
-          <div><span style="color:#4a6a8a">FUEL</span>   ${d.fuelCost?.toFixed(3) || '—'} kg</div>
-          <div><span style="color:#4a6a8a">STATUS</span> ${d.status}</div>
+          <div style="color:#58a6ff;font-weight:600;margin-bottom:4px">${d.burnId}${flagStr}</div>
+          <div><span style="color:#8b949e">TYPE</span>   ${d.type}</div>
+          <div><span style="color:#8b949e">START</span>  ${burnStart.toISOString().slice(11,19)}Z</div>
+          <div><span style="color:#8b949e">DUR</span>    ${d.duration || 180}s</div>
+          <div><span style="color:#8b949e">ΔV</span>     ${dvMag.toFixed(2)} m/s</div>
+          <div><span style="color:#8b949e">FUEL</span>   ${d.fuelCost?.toFixed(3) || '—'} kg</div>
+          <div><span style="color:#8b949e">STATUS</span> ${d.status}</div>
         `;
         tooltipEl.style.left = (event.offsetX + 12) + 'px';
         tooltipEl.style.top  = Math.max(0, event.offsetY - 100) + 'px';
@@ -399,7 +399,7 @@ const Gantt = (() => {
       const h = ROW_HEIGHT - 5;
 
       grp.select('.gantt-block-bg').attr('x', x).attr('width', w);
-      grp.select('.gantt-block-label').attr('x', x + w / 2).text(w > 20
+      grp.select('.gantt-block-label').attr('x', x + w / 2).text(w > 30
         ? (BLOCK_COLORS[d.type] || BLOCK_COLORS['EVASION BURN']).label : '');
       grp.select('.gantt-warn-icon').attr('x', x + w / 2);
     });

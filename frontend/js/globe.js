@@ -321,10 +321,9 @@ const Globe = (() => {
 
       satIdMap[sat.id] = { index: idx, sat, position: pos, point };
 
-      // Orbit trails and predicted trajectory — only for small constellations for performance
+      // Orbit trails — only for small constellations for performance
       if (satellites.length <= 60) {
         addOrbitTrail(sat);
-        addPredictedTrajectory(sat);
       }
     });
   }

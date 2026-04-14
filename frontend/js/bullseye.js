@@ -51,21 +51,9 @@ const Bullseye = (() => {
     radius = Math.min(width, height) / 2 - 30;
   }
 
-  // ── SVG Defs (filters, gradients) ────────────────────────────────────────
+  // ── SVG Defs (filters removed for performance) ─────────────────────────────
   function _buildDefs() {
-    const defs = svg.append('defs');
-
-    const mkGlow = (id, color, std) => {
-      const f = defs.append('filter').attr('id', id)
-        .attr('x', '-50%').attr('y', '-50%').attr('width', '200%').attr('height', '200%');
-      f.append('feGaussianBlur').attr('stdDeviation', std).attr('result', 'blur');
-      f.append('feMerge').selectAll('feMergeNode')
-        .data(['blur', 'SourceGraphic']).join('feMergeNode').attr('in', d => d);
-    };
-
-    mkGlow('glow-blue', '#4a9eff', 3);
-    mkGlow('glow-red',  '#e74c3c', 5);
-    mkGlow('glow-amber','#f39c12', 3);
+    // No filters for performance
   }
 
   // ── Static Elements (rings, radials, legend) ─────────────────────────────
@@ -73,9 +61,9 @@ const Bullseye = (() => {
     // Background circle
     g.append('circle')
       .attr('r', radius)
-      .attr('fill', 'rgba(3,5,12,0.7)')
-      .attr('stroke', '#1a2a3e')
-      .attr('stroke-width', 1);
+      .attr('fill', '#0d1117')
+      .attr('stroke', '#30363d')
+      .attr('stroke-width', 2);
 
     // Concentric rings: 8h, 16h, 24h
     const ringDefs = [
@@ -87,16 +75,16 @@ const Bullseye = (() => {
       g.append('circle')
         .attr('r', r)
         .attr('fill', 'none')
-        .attr('stroke', '#1a3050')
-        .attr('stroke-width', hours === 24 ? 1 : 0.5)
+        .attr('stroke', '#30363d')
+        .attr('stroke-width', hours === 24 ? 2 : 1.5)
         .attr('stroke-dasharray', hours === 24 ? 'none' : '4,4');
 
       // Hour label at 3 o'clock
       g.append('text')
-        .attr('x', r + 4)
-        .attr('y', 3)
-        .attr('fill', '#3a6a9a')
-        .attr('font-size', '8px')
+        .attr('x', r + 6)
+        .attr('y', 4)
+        .attr('fill', '#8b949e')
+        .attr('font-size', '12px')
         .attr('font-family', 'JetBrains Mono, monospace')
         .text(`${hours}h`);
     });
@@ -106,9 +94,10 @@ const Bullseye = (() => {
     g.append('circle')
       .attr('class', 'crit-ring')
       .attr('r', critR)
-      .attr('fill', 'rgba(231,76,60,0.07)')
-      .attr('stroke', '#e74c3c')
-      .attr('stroke-width', 1)
+      .attr('fill', '#f85149')
+      .attr('fill-opacity', 0.15)
+      .attr('stroke', '#f85149')
+      .attr('stroke-width', 2)
       .attr('stroke-dasharray', '6,4');
 
     // Radial spokes (8)
@@ -125,12 +114,12 @@ const Bullseye = (() => {
     // Cardinal direction labels
     [['N', 0, -1], ['E', 1, 0], ['S', 0, 1], ['W', -1, 0]].forEach(([label, dx, dy]) => {
       g.append('text')
-        .attr('x', dx * (radius + 12))
-        .attr('y', dy * (radius + 14))
+        .attr('x', dx * (radius + 16))
+        .attr('y', dy * (radius + 18))
         .attr('text-anchor', 'middle')
         .attr('dominant-baseline', 'central')
-        .attr('fill', '#3a6a9a')
-        .attr('font-size', '9px')
+        .attr('fill', '#8b949e')
+        .attr('font-size', '13px')
         .attr('font-family', 'JetBrains Mono, monospace')
         .text(label);
     });
@@ -139,8 +128,9 @@ const Bullseye = (() => {
     const sweepLine = g.append('line')
       .attr('x1', 0).attr('y1', 0)
       .attr('x2', 0).attr('y2', -radius)
-      .attr('stroke', 'rgba(74,158,255,0.18)')
-      .attr('stroke-width', 1.5);
+      .attr('stroke', '#58a6ff')
+      .attr('stroke-opacity', 0.5)
+      .attr('stroke-width', 2);
 
     (function animateSweep() {
       sweepLine.transition()
@@ -152,9 +142,8 @@ const Bullseye = (() => {
 
     // Centre satellite dot
     g.append('circle')
-      .attr('r', 5)
-      .attr('fill', '#4a9eff')
-      .attr('filter', 'url(#glow-blue)');
+      .attr('r', 6)
+      .attr('fill', '#58a6ff');
 
     // Legend
     _drawLegend();
@@ -169,18 +158,18 @@ const Bullseye = (() => {
     const legend = g.append('g').attr('transform', `translate(${lx},${ly})`);
 
     const items = [
-      { color: '#2ecc71', label: '≥5 km — Safe' },
-      { color: '#f39c12', label: '<5 km — Warning' },
-      { color: '#e74c3c', label: '<1 km — Critical' },
+      { color: '#3fb950', label: '≥5 km — Safe' },
+      { color: '#d29922', label: '<5 km — Warning' },
+      { color: '#f85149', label: '<1 km — Critical' },
     ];
 
     items.forEach(({ color, label }, i) => {
-      const row = legend.append('g').attr('transform', `translate(0,${-i * 14})`);
-      row.append('circle').attr('r', 4).attr('fill', color).attr('cy', -1);
+      const row = legend.append('g').attr('transform', `translate(0,${-i * 18})`);
+      row.append('circle').attr('r', 5).attr('fill', color).attr('cy', -1);
       row.append('text')
-        .attr('x', 9)
-        .attr('fill', '#5a7a9a')
-        .attr('font-size', '8px')
+        .attr('x', 10)
+        .attr('fill', '#8b949e')
+        .attr('font-size', '11px')
         .attr('font-family', 'JetBrains Mono, monospace')
         .attr('dominant-baseline', 'central')
         .attr('y', -1)
@@ -209,9 +198,9 @@ const Bullseye = (() => {
 
   // ── Risk Colour (spec §6.2) ───────────────────────────────────────────────
   function _riskColor(missKm) {
-    if (missKm < 1) return '#e74c3c';   // Red — Critical < 1 km
-    if (missKm < 5) return '#f39c12';   // Yellow — Warning < 5 km
-    return '#2ecc71';                   // Green — Safe ≥ 5 km
+    if (missKm < 1) return '#f85149';   // Red — Critical < 1 km
+    if (missKm < 5) return '#d29922';   // Yellow — Warning < 5 km
+    return '#3fb950';                   // Green — Safe ≥ 5 km
   }
 
   // ── Update with CDM Data ─────────────────────────────────────────────────
@@ -254,9 +243,9 @@ const Bullseye = (() => {
 
       const angleRad = (angleDeg - 90) * Math.PI / 180;
       const color    = _riskColor(cdm.missDistance);
-      const size     = cdm.missDistance < 1 ? 7
-                     : cdm.missDistance < 5 ? 5
-                     : 3.5;
+      const size     = cdm.missDistance < 1 ? 9
+                     : cdm.missDistance < 5 ? 7
+                     : 5;
 
       return {
         x: Math.cos(angleRad) * r,
@@ -282,8 +271,7 @@ const Bullseye = (() => {
       .attr('cy', d => d.y)
       .attr('r', 0)
       .attr('fill', d => d.color)
-      .attr('opacity', 0.85)
-      .attr('filter', d => d.cdm.missDistance < 1 ? 'url(#glow-red)' : 'none')
+      .attr('opacity', 0.9)
       .style('cursor', 'pointer')
       .on('click', (event, d) => {
         if (typeof AppState !== 'undefined') AppState.selectSatellite(d.cdm.satelliteId);

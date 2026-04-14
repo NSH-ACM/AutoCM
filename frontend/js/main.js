@@ -122,32 +122,52 @@
   // SPLIT.JS — Resizable Panels
   // ══════════════════════════════════════════════════════════════════════════
   function initSplitPanels() {
-    // Top-level vertical split linking the three rows
-    Split(['#chart-row-1', '#chart-row-2', '#chart-row-3'], {
-      direction: 'vertical',
-      sizes: [33, 33, 34],
-      minSize: 100,
-      gutterSize: 4,
-      onDragEnd: handleResize
-    });
+    // Check if Split.js is available
+    if (typeof Split === 'undefined') {
+      console.warn('[Split] Split.js not loaded');
+      return;
+    }
+
+    // Check if charts view elements exist before initializing
+    const row1 = document.getElementById('chart-row-1');
+    const row2 = document.getElementById('chart-row-2');
+    
+    if (row1 && row2) {
+      // Top-level vertical split linking the two rows
+      Split(['#chart-row-1', '#chart-row-2'], {
+        direction: 'vertical',
+        sizes: [50, 50],
+        minSize: 100,
+        gutterSize: 4,
+        onDragEnd: handleResize
+      });
+    }
 
     // Horizontal split for row 1
-    Split(['#bullseye-panel', '#fuel-panel'], {
-      direction: 'horizontal',
-      sizes: [50, 50],
-      minSize: 150,
-      gutterSize: 4,
-      onDragEnd: handleResize
-    });
+    const bullseyePanel = document.getElementById('bullseye-panel');
+    const fuelPanel = document.getElementById('fuel-panel');
+    if (bullseyePanel && fuelPanel) {
+      Split(['#bullseye-panel', '#fuel-panel'], {
+        direction: 'horizontal',
+        sizes: [50, 50],
+        minSize: 150,
+        gutterSize: 4,
+        onDragEnd: handleResize
+      });
+    }
 
     // Horizontal split for row 2
-    Split(['#gantt-panel', '#alerts-panel'], {
-      direction: 'horizontal',
-      sizes: [50, 50],
-      minSize: 150,
-      gutterSize: 4,
-      onDragEnd: handleResize
-    });
+    const ganttPanel = document.getElementById('gantt-panel');
+    const telemetryPanel = document.getElementById('telemetry-panel');
+    if (ganttPanel && telemetryPanel) {
+      Split(['#gantt-panel', '#telemetry-panel'], {
+        direction: 'horizontal',
+        sizes: [50, 50],
+        minSize: 150,
+        gutterSize: 4,
+        onDragEnd: handleResize
+      });
+    }
   }
 
   // ══════════════════════════════════════════════════════════════════════════

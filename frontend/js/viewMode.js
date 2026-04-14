@@ -62,6 +62,12 @@ const ViewMode = (() => {
       if (typeof Gantt !== 'undefined') {
         Gantt.resize();
       }
+      if (typeof Telemetry !== 'undefined') {
+        Telemetry.init();
+      }
+      if (typeof Fuel !== 'undefined') {
+        Fuel.init();
+      }
     }, 100);
     
     currentMode = mode;

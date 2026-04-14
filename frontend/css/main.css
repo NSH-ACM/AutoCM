@@ -82,19 +82,7 @@ html, body {
 }
 
 #holo-scan::after {
-  content: '';
-  position: absolute;
-  left: 0;
-  right: 0;
-  height: 2px;
-  background: linear-gradient(90deg,
-    transparent 0%,
-    rgba(74,158,255,0.03) 20%,
-    rgba(74,158,255,0.08) 50%,
-    rgba(74,158,255,0.03) 80%,
-    transparent 100%
-  );
-  animation: holo-scan-move 8s linear infinite;
+  display: none;
 }
 
 /* ── Particle Background Canvas — DISABLED for performance ───────────── */
@@ -236,7 +224,7 @@ html, body {
   left: 50%;
   width: 1px;
   transform: translateX(-50%);
-  background: linear-gradient(180deg, transparent, var(--blue), transparent);
+  background: var(--blue);
   box-shadow: none;
 }
 
@@ -246,7 +234,7 @@ html, body {
   top: 50%;
   height: 1px;
   transform: translateY(-50%);
-  background: linear-gradient(90deg, transparent, var(--blue), transparent);
+  background: var(--blue);
   box-shadow: none;
 }
 
@@ -309,11 +297,7 @@ html, body {
   z-index: 3;
   opacity: 0;
   transition: opacity 0.5s ease;
-  background: 
-    linear-gradient(90deg, transparent, var(--blue), transparent) top / 100% 1px no-repeat,
-    linear-gradient(90deg, transparent, var(--blue), transparent) bottom / 100% 1px no-repeat,
-    linear-gradient(180deg, transparent, var(--blue), transparent) left / 1px 100% no-repeat,
-    linear-gradient(180deg, transparent, var(--blue), transparent) right / 1px 100% no-repeat;
+  background: var(--blue);
 }
 
 .panel.data-flash::after {
@@ -379,6 +363,6 @@ html, body {
 
 /* ── Selection ──────────────────────────────────────────────────────────── */
 ::selection {
-  background: rgba(74,158,255,0.3);
+  background: var(--blue);
   color: #fff;
 }
