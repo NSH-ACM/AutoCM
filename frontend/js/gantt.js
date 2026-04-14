@@ -34,8 +34,8 @@ const Gantt = (() => {
     if (!container) return;
 
     const rect = container.getBoundingClientRect();
-    width = rect.width - MARGIN.left - MARGIN.right;
-    height = rect.height - MARGIN.top - MARGIN.bottom;
+    width = Math.max(0, rect.width - MARGIN.left - MARGIN.right);
+    height = Math.max(0, rect.height - MARGIN.top - MARGIN.bottom);
 
     tooltipEl = document.getElementById('gantt-tooltip');
 
@@ -50,6 +50,24 @@ const Gantt = (() => {
       .append('rect')
       .attr('width', width)
       .attr('height', height);
+
+    // Cooldown Stripes Pattern
+    const defs = svg.select('defs');
+    const pattern = defs.append('pattern')
+      .attr('id', 'cooldown-pattern')
+      .attr('patternUnits', 'userSpaceOnUse')
+      .attr('width', 8)
+      .attr('height', 8)
+      .attr('patternTransform', 'rotate(45)');
+    pattern.append('rect')
+      .attr('width', 4)
+      .attr('height', 8)
+      .attr('fill', '#2a1a08');
+    pattern.append('rect')
+      .attr('x', 4)
+      .attr('width', 4)
+      .attr('height', 8)
+      .attr('fill', 'rgba(243,156,18,0.25)');
 
     g = svg.append('g')
       .attr('transform', `translate(${MARGIN.left},${MARGIN.top})`);
@@ -220,8 +238,7 @@ const Gantt = (() => {
 
       // Cooldown stripes
       if (d.type === 'COOLDOWN') {
-        rect.style('fill', `repeating-linear-gradient(45deg, ${colors.fill}, ${colors.fill} 5px, rgba(243,156,18,0.15) 5px, rgba(243,156,18,0.15) 10px)`);
-        rect.classed('cooldown-stripes', true);
+        rect.attr('fill', 'url(#cooldown-pattern)');
       }
 
       group.select('.gantt-block-label')

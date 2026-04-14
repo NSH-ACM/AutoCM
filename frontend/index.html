@@ -8,7 +8,7 @@
 
   <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600&family=Orbitron:wght@400;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@300;400;500;600&family=Orbitron:wght@400;600;700&display=swap" rel="stylesheet">
 
   <!-- CesiumJS -->
   <link rel="stylesheet" href="https://cesium.com/downloads/cesiumjs/releases/1.114/Build/Cesium/Widgets/widgets.css">
@@ -21,17 +21,14 @@
   <script src="https://unpkg.com/lucide@0.344.0/dist/umd/lucide.min.js"></script>
 
   <!-- Design System -->
-  <link rel="stylesheet" href="css/main.css">
-  <link rel="stylesheet" href="css/panels.css">
-  <link rel="stylesheet" href="css/animations.css">
+  <link rel="stylesheet" href="css/main.css?v=2">
+  <link rel="stylesheet" href="css/panels.css?v=2">
+  <link rel="stylesheet" href="css/animations.css?v=2">
 </head>
 <body>
 
   <!-- ── Cinematic background layers ── -->
-  <canvas id="particle-canvas"></canvas>
-  <div id="vignette"></div>
-  <div id="holo-scan"></div>
-  <div id="scanline-overlay"></div>
+  <!-- Disabled for Mission Control aesthetics -->
 
   <!-- ── Toast container ── -->
   <div id="toast-container"></div>
@@ -101,30 +98,33 @@
     <!-- MAIN CONTENT -->
     <main id="main-content">
 
-      <!-- PROJECTION MODE VIEW -->
+      <!-- PROJECTION MODE VIEW - Full Page Map -->
       <div id="projection-view" class="view-container active">
-        <!-- UPPER ROW -->
-        <div id="upper-row">
-
-          <!-- Map View (3D Globe or 2D Mercator) -->
-          <div id="map-panel" class="panel glass-panel">
-            <div class="panel-content">
-              <div id="cesium-container"></div>
-              <div id="groundtrack-svg-container" style="display: none;">
-                <svg id="groundtrack-svg"></svg>
-              </div>
-            </div>
-            <div class="globe-tooltip" id="globe-tooltip">
-              <div class="sat-id"></div>
-              <div class="sat-field"><span class="label">STATUS</span><span class="value"></span></div>
-              <div class="sat-field"><span class="label">FUEL</span><span class="value"></span></div>
-              <div class="sat-field"><span class="label">LAST BURN</span><span class="value"></span></div>
-            </div>
-            <div class="map-toggle">
-              <button id="toggle-3d" class="map-toggle-btn active">3D</button>
-              <button id="toggle-2d" class="map-toggle-btn">2D</button>
+        <!-- Map View (3D Globe or 2D Mercator) - Full Page -->
+        <div id="map-panel" class="panel glass-panel full-page-map">
+          <div class="panel-content">
+            <div id="cesium-container" style="display: none;"></div>
+            <div id="groundtrack-svg-container">
+              <svg id="groundtrack-svg"></svg>
             </div>
           </div>
+          <div class="globe-tooltip" id="globe-tooltip">
+            <div class="sat-id"></div>
+            <div class="sat-field"><span class="label">STATUS</span><span class="value"></span></div>
+            <div class="sat-field"><span class="label">FUEL</span><span class="value"></span></div>
+            <div class="sat-field"><span class="label">LAST BURN</span><span class="value"></span></div>
+          </div>
+          <div class="map-toggle">
+            <button id="toggle-3d" class="map-toggle-btn">3D</button>
+            <button id="toggle-2d" class="map-toggle-btn active">2D</button>
+          </div>
+        </div>
+      </div><!-- /projection-view -->
+
+      <!-- CHARTS MODE VIEW -->
+      <div id="charts-view" class="view-container">
+        <!-- CHARTS GRID -->
+        <div id="charts-grid">
 
           <!-- Conjunction Bullseye -->
           <div id="bullseye-panel" class="panel glass-panel">
@@ -141,42 +141,6 @@
               </div>
             </div>
           </div>
-
-        </div><!-- /upper-row -->
-
-        <!-- LOWER ROW - Mini panels for projection mode -->
-        <div id="lower-row-mini">
-          <!-- Mini Fuel -->
-          <div id="fuel-panel-mini" class="panel glass-panel">
-            <div class="panel-content">
-              <div class="panel-title">
-                <i data-lucide="fuel"></i>
-                FUEL STATUS
-              </div>
-              <div id="fuel-list-mini"></div>
-            </div>
-          </div>
-
-          <!-- Mini Alerts -->
-          <div id="alerts-panel-mini" class="panel glass-panel">
-            <div class="panel-content">
-              <div class="panel-title panel-title-alerts">
-                <span class="panel-title-left">
-                  <i data-lucide="bell"></i>
-                  MISSION ALERTS
-                </span>
-                <span id="alert-count-badge-mini" class="alert-count-badge">0</span>
-              </div>
-              <div id="alert-list-mini"></div>
-            </div>
-          </div>
-        </div><!-- /lower-row-mini -->
-      </div><!-- /projection-view -->
-
-      <!-- CHARTS MODE VIEW -->
-      <div id="charts-view" class="view-container">
-        <!-- CHARTS GRID -->
-        <div id="charts-grid">
 
           <!-- Fuel Gauges -->
           <div id="fuel-panel" class="panel glass-panel">
@@ -304,18 +268,19 @@
   </div>
 
   <!-- JS modules — order matters for globals -->
-  <script src="js/state.js?v=5"></script>
-  <script src="js/api.js?v=5"></script>
-  <script src="js/ws_telemetry.js?v=5"></script>
-  <script src="js/globe.js?v=5"></script>
-  <script src="js/bullseye.js?v=5"></script>
-  <script src="js/fuel.js?v=5"></script>
-  <script src="js/gantt.js?v=5"></script>
-  <script src="js/telemetry.js?v=5"></script>
-  <script src="js/alerts.js?v=5"></script>
-  <script src="js/speedControl.js?v=5"></script>
-  <script src="js/drawer.js?v=5"></script>
-  <script src="js/viewMode.js?v=5"></script>
-  <script src="js/main.js?v=5"></script>
+  <script src="js/state.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/ws_telemetry.js"></script>
+  <script src="js/globe.js"></script>
+  <script src="js/groundTrack.js"></script>
+  <script src="js/bullseye.js"></script>
+  <script src="js/fuel.js"></script>
+  <script src="js/gantt.js"></script>
+  <script src="js/telemetry.js"></script>
+  <script src="js/alerts.js"></script>
+  <script src="js/speedControl.js"></script>
+  <script src="js/drawer.js"></script>
+  <script src="js/viewMode.js"></script>
+  <script src="js/main.js"></script>
 </body>
 </html>

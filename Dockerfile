@@ -8,8 +8,10 @@ FROM ubuntu:22.04 AS cpp-builder
 
 ENV DEBIAN_FRONTEND=noninteractive
 
+# Pin python3.11 explicitly — avoids cpython binary suffix mismatch
 RUN apt-get update && apt-get install -y \
-    build-essential cmake python3 python3-dev python3-pip \
+    build-essential cmake python3.11 python3.11-dev python3-pip \
+    && update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 1 \
     && pip3 install pybind11 \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
@@ -17,8 +19,10 @@ WORKDIR /build
 COPY engine/ ./engine/
 
 RUN cd engine && mkdir -p build && cd build \
-    && cmake .. -DCMAKE_BUILD_TYPE=Release 2>&1 | tail -5 \
-    && make -j$(nproc) 2>&1 | tail -10 \
+    && PYBIND11_DIR=$(python3 -c "import pybind11; print(pybind11.get_cmake_dir())") \
+    && echo "PYBIND11_DIR: $PYBIND11_DIR" \
+    && cmake .. -DCMAKE_BUILD_TYPE=Release -Dpybind11_DIR="$PYBIND11_DIR" \
+    && make -j$(nproc) \
     || (echo "[BUILD] C++ engine build failed — Python mock will be used" && touch .keep)
 
 # ── Stage 2: Application ─────────────────────────────────────────────────
@@ -28,10 +32,10 @@ WORKDIR /app
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Install Python and dependencies
+# Pin python3.11 — must match builder stage to avoid cpython-3XX suffix mismatch
 RUN apt-get update && apt-get install -y \
-    python3 python3-pip python3-dev \
-    && pip3 install --no-cache-dir fastapi uvicorn pydantic \
+    python3.11 python3.11-dev python3-pip \
+    && update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 1 \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies
@@ -48,7 +52,7 @@ COPY frontend/ ./frontend/
 COPY core/ ./core/
 
 # Generate catalog if not present
-RUN cd /app && python3 data/generate_catalog.py 2>/dev/null || echo "[OK] Using existing catalog"
+RUN cd /app/data && python3 generate_catalog.py 2>/dev/null || echo "[OK] Using existing catalog"
 
 # Ensure host-OS engine binaries (like .pyd or .so built on Windows/Mac) aren't mixed in
 RUN rm -f ./core/autocm_engine*.so ./core/autocm_engine*.pyd

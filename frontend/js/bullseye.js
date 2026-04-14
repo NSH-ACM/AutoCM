@@ -218,7 +218,6 @@ const Bullseye = (() => {
       .duration(600)
       .attr('r', d => d.size);
 
-    // Tooltips
     enter.append('title')
       .text(d => `${d.cdm.debrisId}\nMiss: ${d.cdm.missDistance.toFixed(3)} km\nTCA: T-${d.hoursToTCA.toFixed(1)}h\nP(collision): ${(d.cdm.probability * 100).toFixed(3)}%`);
 

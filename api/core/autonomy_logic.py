@@ -247,7 +247,7 @@ class AutonomyManager:
                 else:
                     r = state_data.get('r', {'x':0,'y':0,'z':0})
                     lat, lon, alt = self.state._eci_to_latlon(r)
-                    from ..state_manager import DebrisObject
+                    from api.state_manager import DebrisObject
                     self.state.debris[obj_id] = DebrisObject(id=obj_id, lat=lat, lon=lon, alt_km=alt)
                 processed_count += 1
 

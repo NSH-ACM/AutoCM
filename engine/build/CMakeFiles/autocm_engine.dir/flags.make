@@ -4,7 +4,7 @@
 # compile CXX with /usr/bin/c++
 CXX_DEFINES = -Dautocm_engine_EXPORTS
 
-CXX_INCLUDES = -I/home/Code1/dev/temp/AutoCM/engine -isystem /home/Code1/dev/temp/AutoCM/venv/lib/python3.13/site-packages/pybind11/include -isystem /usr/include/python3.13
+CXX_INCLUDES = -I/home/Code1/dev/Projects/AutoCM/engine -isystem /home/Code1/dev/Projects/AutoCM/venv/lib/python3.13/site-packages/pybind11/include -isystem /usr/include/python3.13
 
 CXX_FLAGS = -O3 -DNDEBUG -std=gnu++17 -fPIC -fvisibility=hidden -O3 -flto=auto -fno-fat-lto-objects
 

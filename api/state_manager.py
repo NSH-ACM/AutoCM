@@ -171,29 +171,67 @@ class StateManager:
 
             # Load satellites
             for sat_data in catalog.get("satellites", []):
+                sat_id = sat_data["id"]
+
+                # Handle both catalog formats:
+                # Format A (new): has nested state.r, state.v (from generate_catalog.py)
+                # Format B (old): has flat lat, lon, alt_km fields
+                if "state" in sat_data and isinstance(sat_data["state"], dict):
+                    r = sat_data["state"]["r"]
+                    v = sat_data["state"]["v"]
+                    fuel_kg = sat_data.get("mass_fuel", 50.0)
+                    lat, lon, alt_km = self._eci_to_latlon(r)
+                    plane = sat_id.split("-")[1] if "-" in sat_id else ""
+                else:
+                    lat = sat_data.get("lat", 0.0)
+                    lon = sat_data.get("lon", 0.0)
+                    alt_km = sat_data.get("alt_km", 500.0)
+                    fuel_kg = sat_data.get("fuel_kg", 50.0)
+                    plane = sat_data.get("plane", "")
+                    r = self._latlon_to_eci(lat, lon, alt_km)
+                    v = self._compute_orbital_velocity(r, lat)
+
                 sat = SatelliteState(
-                    id=sat_data["id"],
-                    lat=sat_data["lat"],
-                    lon=sat_data["lon"],
-                    alt_km=sat_data.get("alt_km", 500.0),
-                    fuel_kg=sat_data.get("fuel_kg", 50.0),
+                    id=sat_id,
+                    lat=lat,
+                    lon=lon,
+                    alt_km=alt_km,
+                    fuel_kg=fuel_kg,
                     status=sat_data.get("status", "NOMINAL"),
-                    plane=sat_data.get("plane", ""),
-                    last_update=time.time(),
+                    plane=plane,
+                    last_update=time.time()
                 )
-                # Convert lat/lon to rough ECI for physics
-                sat.r = self._latlon_to_eci(sat.lat, sat.lon, sat.alt_km)
-                sat.v = self._compute_orbital_velocity(sat.r, sat.lat)
+                sat.r = r
+                sat.v = v
                 self.satellites[sat.id] = sat
 
             # Load debris
             for deb_data in catalog.get("debris", []):
-                deb_id = deb_data[0] if isinstance(deb_data, list) else deb_data["id"]
+                # Handle both formats:
+                # Format A (new): dict with nested state.r (from generate_catalog.py)
+                # Format B (old): list [id, lat, lon, alt_km] or dict with lat/lon
+                if isinstance(deb_data, list):
+                    deb_id = deb_data[0]
+                    lat = deb_data[1]
+                    lon = deb_data[2]
+                    alt_km = deb_data[3] if len(deb_data) > 3 else 450.0
+                elif isinstance(deb_data, dict):
+                    deb_id = deb_data["id"]
+                    if "state" in deb_data and isinstance(deb_data["state"], dict):
+                        r = deb_data["state"]["r"]
+                        lat, lon, alt_km = self._eci_to_latlon(r)
+                    else:
+                        lat = deb_data.get("lat", 0.0)
+                        lon = deb_data.get("lon", 0.0)
+                        alt_km = deb_data.get("alt_km", 450.0)
+                else:
+                    continue
+
                 self.debris[deb_id] = DebrisObject(
                     id=deb_id,
-                    lat=deb_data[1] if isinstance(deb_data, list) else deb_data["lat"],
-                    lon=deb_data[2] if isinstance(deb_data, list) else deb_data["lon"],
-                    alt_km=deb_data[3] if isinstance(deb_data, list) else deb_data.get("alt_km", 450.0),
+                    lat=lat,
+                    lon=lon,
+                    alt_km=alt_km,
                 )
 
             self._initialized = True

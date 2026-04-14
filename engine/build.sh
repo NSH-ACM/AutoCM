@@ -13,7 +13,10 @@ cd build
 
 # Configure with CMake
 echo "Configuring with CMake..."
-cmake .. -DCMAKE_BUILD_TYPE=Release -Dpybind11_DIR=/home/Code1/dev/temp/AutoCM/venv/lib/python3.13/site-packages/pybind11/share/cmake/pybind11
+# Use system python3 — works both inside Docker and in local venv environments
+PYTHON_BIN=$(which python3)
+PYBIND_DIR=$("$PYTHON_BIN" -c "import pybind11; print(pybind11.get_cmake_dir())")
+cmake .. -DCMAKE_BUILD_TYPE=Release -Dpybind11_DIR="$PYBIND_DIR"
 
 # Build the engine
 echo "Building..."

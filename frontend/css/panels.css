@@ -1,30 +1,27 @@
 /* ═══════════════════════════════════════════════════════════════════════════
-   ORBITAL INSIGHT — Panel-Specific Styles  (Glassmorphism Redesign)
-   Premium mission-control dashboard aesthetic with depth, blur, and glow.
+   ORBITAL INSIGHT — Panel-Specific Styles
+   Glassmorphism Redesign
    ═══════════════════════════════════════════════════════════════════════════ */
 
 /* ════════════════════════════════════════════════════════════════════════════
    GLASSMORPHISM PANELS — Frosted-glass effect with luminous borders
    ════════════════════════════════════════════════════════════════════════════ */
 .glass-panel {
-  background: rgba(8, 13, 20, 0.72);
-  backdrop-filter: blur(18px) saturate(1.3);
-  -webkit-backdrop-filter: blur(18px) saturate(1.3);
+  background: var(--bg-primary);
   border: 1px solid rgba(74, 158, 255, 0.08);
-  box-shadow:
-    0 4px 30px rgba(0, 0, 0, 0.45),
-    inset 0 1px 0 rgba(255, 255, 255, 0.03),
-    inset 0 -1px 0 rgba(0, 0, 0, 0.3);
+  box-shadow: none;
   transition: border-color 0.4s ease, box-shadow 0.4s ease;
 }
 
 .glass-panel:hover {
   border-color: rgba(74, 158, 255, 0.15);
-  box-shadow:
-    0 8px 40px rgba(0, 0, 0, 0.5),
-    0 0 20px rgba(74, 158, 255, 0.04),
-    inset 0 1px 0 rgba(255, 255, 255, 0.04),
-    inset 0 -1px 0 rgba(0, 0, 0, 0.3);
+  box-shadow: none;
+}
+
+.panel {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-dim);
+  border-radius: 4px;
 }
 
 /* Grid layout is defined in main.css — do not duplicate here */
@@ -58,9 +55,7 @@
    TOP BAR
    ════════════════════════════════════════════════════════════════════════════ */
 #topbar {
-  background: rgba(13, 21, 32, 0.88);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  background: var(--bg-secondary);
   border-bottom: 1px solid rgba(74, 158, 255, 0.1);
   display: flex;
   align-items: center;
@@ -69,10 +64,8 @@
   gap: 16px;
   z-index: 100;
   position: relative;
-  box-shadow: 0 2px 20px rgba(0, 0, 0, 0.4);
 }
 
-/* Subtle top highlight */
 #topbar::before {
   content: '';
   position: absolute;
@@ -99,10 +92,10 @@
 .topbar-logo {
   font-family: 'Orbitron', monospace;
   font-size: 14px;
-  font-weight: 600;
-  letter-spacing: 4px;
-  color: var(--blue);
-  position: relative;
+  font-weight: 700;
+  letter-spacing: 2px;
+  color: var(--text-primary);
+  text-transform: uppercase;
 }
 
 .topbar-separator {
@@ -147,7 +140,6 @@
   padding: 5px 12px;
   border: 1px solid transparent;
   background: rgba(255, 255, 255, 0.02);
-  backdrop-filter: blur(4px);
   min-width: 80px;
   border-radius: 4px;
   transition: all 0.25s ease;
@@ -157,7 +149,7 @@
 .stat-chip:hover {
   border-color: rgba(74, 158, 255, 0.12);
   background: rgba(74, 158, 255, 0.04);
-  box-shadow: 0 2px 12px rgba(74, 158, 255, 0.06);
+  box-shadow: none;
 }
 
 .stat-chip .label {
@@ -198,11 +190,25 @@
 /* ════════════════════════════════════════════════════════════════════════════
    GLOBE PANEL
    ════════════════════════════════════════════════════════════════════════════ */
-#globe-panel {
+#globe-panel,
+#map-panel {
   position: relative;
+  overflow: hidden;
 }
 
 #cesium-container {
+  width: 100%;
+  height: 100%;
+}
+
+#groundtrack-svg-container {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  min-height: 400px;
+}
+
+#groundtrack-svg {
   width: 100%;
   height: 100%;
 }
@@ -225,14 +231,13 @@
   position: absolute;
   pointer-events: none;
   z-index: 50;
-  background: rgba(8, 13, 20, 0.92);
-  backdrop-filter: blur(14px);
+  background: var(--bg-primary);
   border: 1px solid rgba(74, 158, 255, 0.15);
   padding: 10px 14px;
   font-size: 11px;
   line-height: 1.5;
   max-width: 230px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.65);
+  box-shadow: none;
   border-radius: 6px;
   opacity: 0;
   transition: opacity 0.15s ease;
@@ -281,9 +286,9 @@
 }
 
 #bullseye-sat-id {
-  color: var(--blue);
+  color: var(--text-primary);
   font-size: 12px;
-  font-weight: 500;
+  font-weight: 600;
 }
 
 #bullseye-svg-container {
@@ -334,7 +339,7 @@
 .fuel-row.selected {
   border-color: rgba(74, 158, 255, 0.2);
   background: rgba(74, 158, 255, 0.05);
-  box-shadow: 0 0 12px rgba(74, 158, 255, 0.04);
+  box-shadow: none;
 }
 
 .fuel-row .sat-id {
@@ -428,14 +433,13 @@
   position: absolute;
   pointer-events: none;
   z-index: 50;
-  background: rgba(8, 13, 20, 0.94);
-  backdrop-filter: blur(14px);
+  background: var(--bg-primary);
   border: 1px solid rgba(74, 158, 255, 0.15);
   padding: 10px 14px;
   font-size: 10px;
   line-height: 1.6;
   max-width: 240px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.65);
+  box-shadow: none;
   border-radius: 6px;
   opacity: 0;
   transition: opacity 0.15s ease;
@@ -643,10 +647,9 @@
 #context-menu {
   position: absolute;
   z-index: 500;
-  background: rgba(8, 13, 20, 0.95);
-  backdrop-filter: blur(16px);
+  background: var(--bg-primary);
   border: 1px solid rgba(74, 158, 255, 0.12);
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.65);
+  box-shadow: none;
   min-width: 200px;
   border-radius: 6px;
   overflow: hidden;
@@ -682,9 +685,7 @@
    SPEED CONTROL BAR — Frosted glass control strip
    ════════════════════════════════════════════════════════════════════════════ */
 #speed-bar {
-  background: rgba(8, 13, 20, 0.82);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  background: var(--bg-primary);
   border-bottom: 1px solid rgba(26, 42, 62, 0.6);
   display: flex;
   align-items: center;
@@ -731,7 +732,7 @@
   background: rgba(74, 158, 255, 0.12);
   border-color: var(--blue);
   color: var(--blue);
-  box-shadow: 0 0 12px rgba(74, 158, 255, 0.15);
+  box-shadow: none;
 }
 
 .sc-play svg, .sc-stop svg, .sc-step svg { pointer-events: none; }
@@ -766,8 +767,8 @@
 }
 
 @keyframes pulse-dot {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(46, 204, 113, 0.6); }
-  50%      { box-shadow: 0 0 0 4px rgba(46, 204, 113, 0); }
+  0%, 100% { box-shadow: none; }
+  50%      { box-shadow: none; }
 }
 
 .sc-label {
@@ -876,7 +877,6 @@
   inset: 0;
   z-index: 200;
   background: rgba(3, 5, 8, 0.5);
-  backdrop-filter: blur(3px);
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.35s ease;
@@ -894,11 +894,9 @@
   bottom: 0;
   width: 400px;
   z-index: 300;
-  background: rgba(8, 13, 20, 0.94);
-  backdrop-filter: blur(24px) saturate(1.2);
-  -webkit-backdrop-filter: blur(24px) saturate(1.2);
+  background: var(--bg-primary);
   border-left: 1px solid rgba(74, 158, 255, 0.1);
-  box-shadow: -30px 0 80px rgba(0, 0, 0, 0.7);
+  box-shadow: none;
   transform: translateX(440px);
   display: flex;
   flex-direction: column;
@@ -917,7 +915,7 @@
   padding: 14px 18px;
   border-bottom: 1px solid var(--border-dim);
   flex-shrink: 0;
-  background: rgba(13, 21, 32, 0.9);
+  background: var(--bg-secondary);
 }
 
 .drawer-title {
@@ -1111,7 +1109,7 @@
   background: rgba(74, 158, 255, 0.1);
   border-color: var(--blue);
   color: var(--blue);
-  box-shadow: 0 0 16px rgba(74, 158, 255, 0.06);
+  box-shadow: none;
 }
 
 .drawer-action-btn i { width: 12px; height: 12px; }
@@ -1150,10 +1148,9 @@
 }
 
 .toast {
-  background: rgba(8, 13, 20, 0.94);
-  backdrop-filter: blur(16px);
+  background: var(--bg-primary);
   border: 1px solid rgba(74, 158, 255, 0.12);
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.7);
+  box-shadow: none;
   padding: 12px 16px;
   width: 320px;
   display: flex;
@@ -1210,30 +1207,36 @@
   to { opacity: 1; transform: translateY(0); }
 }
 
-/* Projection view layout */
+/* Projection view layout - Full Page Map */
 #projection-view {
   display: none;
-  flex-direction: column;
-  gap: 12px;
+  width: 100%;
+  height: 100%;
 }
 
 #projection-view.active {
   display: flex;
+  flex-direction: column;
 }
 
-#upper-row {
-  display: grid;
-  grid-template-columns: 2fr 1fr;
-  gap: 12px;
-  min-height: 0;
+.full-page-map {
+  width: 100%;
+  height: 100%;
+  border: none;
+  border-radius: 0;
+  flex: 1;
 }
 
-#lower-row-mini {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-  min-height: 0;
-  max-height: 200px;
+.full-page-map .panel-content {
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  position: relative;
+}
+
+.full-page-map .panel-content > div {
+  width: 100%;
+  height: 100%;
 }
 
 /* Charts view layout */
@@ -1249,7 +1252,7 @@
 #charts-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  grid-template-rows: repeat(2, 1fr);
+  grid-template-rows: repeat(3, 1fr);
   gap: 12px;
   height: 100%;
   overflow: hidden;
@@ -1345,7 +1348,7 @@
 
 .map-toggle-btn.active {
   background: rgba(74, 158, 255, 0.2);
-  color: var(--accent-blue);
+  color: var(--blue);
 }
 
 #map-panel {

@@ -14,10 +14,10 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - ./api:/app/api
+      # NOTE: engine/ is intentionally NOT mounted—host files would shadow the
+      # compiled autocm_engine.so baked into the image during the build stage.
       - ./data:/app/data
       - ./frontend:/app/frontend
-      - ./engine:/app/engine
     environment:
       - ENV=development
       - PYTHONUNBUFFERED=1

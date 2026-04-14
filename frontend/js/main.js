@@ -25,15 +25,48 @@
     // Setup resizable panels with Split.js
     initSplitPanels();
 
-    // Init background effects
-    initParticleField();
+// Particle field removed for performance
 
-    // Init all modules (after split layout settles)
+    // Init all modules
     setTimeout(() => {
       GroundTrack.init();
-      Globe.init();
-      Bullseye.init();
+      let globeInitialized = false;
+
+      // Wire 2D/3D toggle
+      const toggle3d = document.getElementById('toggle-3d');
+      const toggle2d = document.getElementById('toggle-2d');
+
+      if (toggle3d && toggle2d) {
+          toggle3d.addEventListener('click', () => {
+              if (!globeInitialized) {
+                  try {
+                      Globe.init();
+                      globeInitialized = true;
+                  } catch(e) {
+                      console.warn('[Globe] CesiumJS init failed:', e.message);
+                  }
+              }
+              toggle3d.classList.add('active');
+              toggle2d.classList.remove('active');
+              const cesiumContainer = document.getElementById('cesium-container');
+              const groundtrackContainer = document.getElementById('groundtrack-svg-container');
+              if (cesiumContainer) cesiumContainer.style.display = 'block';
+              if (groundtrackContainer) groundtrackContainer.style.display = 'none';
+          });
+          toggle2d.addEventListener('click', () => {
+              toggle2d.classList.add('active');
+              toggle3d.classList.remove('active');
+              const cesiumContainer = document.getElementById('cesium-container');
+              const groundtrackContainer = document.getElementById('groundtrack-svg-container');
+              if (cesiumContainer) cesiumContainer.style.display = 'none';
+              if (groundtrackContainer) {
+                  groundtrackContainer.style.display = 'flex';
+                  GroundTrack.resize();
+              }
+          });
+      }
       FuelPanel.init();
+      Bullseye.init();
       Gantt.init();
       Telemetry.init();
       SpeedControl.init();
@@ -67,30 +100,6 @@
       // GSAP Entrance Choreography
       playEntranceSequence();
 
-      // Wire 2D/3D toggle
-      const toggle3d = document.getElementById('toggle-3d');
-      const toggle2d = document.getElementById('toggle-2d');
-      const cesiumContainer = document.getElementById('cesium-container');
-      const groundtrackContainer = document.getElementById('groundtrack-svg-container');
-
-      if (toggle3d && toggle2d) {
-          toggle3d.addEventListener('click', () => {
-              toggle3d.classList.add('active');
-              toggle2d.classList.remove('active');
-              if (cesiumContainer) cesiumContainer.style.display = 'block';
-              if (groundtrackContainer) groundtrackContainer.style.display = 'none';
-          });
-          toggle2d.addEventListener('click', () => {
-              toggle2d.classList.add('active');
-              toggle3d.classList.remove('active');
-              if (cesiumContainer) cesiumContainer.style.display = 'none';
-              if (groundtrackContainer) {
-                  groundtrackContainer.style.display = 'flex';
-                  GroundTrack.resize();
-              }
-          });
-      }
-
       // Sim-step event fires when SpeedControl does a manual step
       document.addEventListener('sim-step', () => {
         pollSnapshot();
@@ -113,33 +122,9 @@
   // SPLIT.JS — Resizable Panels
   // ══════════════════════════════════════════════════════════════════════════
   function initSplitPanels() {
-    // Vertical split: upper row / lower row
-    Split(['#upper-row', '#lower-row'], {
-      direction: 'vertical',
-      sizes: [58, 42],
-      minSize: [250, 200],
-      gutterSize: 4,
-      cursor: 'row-resize',
-      onDragEnd: handleResize,
-    });
-
-    // Upper row horizontal split: globe / bullseye
-    Split(['#globe-panel', '#bullseye-panel'], {
-      sizes: [68, 32],
-      minSize: [300, 250],  // Bullseye cannot go below 250px
-      gutterSize: 4,
-      cursor: 'col-resize',
-      onDragEnd: handleResize,
-    });
-
-    // Lower row horizontal split: fuel / gantt / telemetry / alerts
-    Split(['#fuel-panel', '#gantt-panel', '#telemetry-panel', '#alerts-panel'], {
-      sizes: [14, 38, 28, 20],
-      minSize: [120, 250, 200, 150],
-      gutterSize: 4,
-      cursor: 'col-resize',
-      onDragEnd: handleResize,
-    });
+    // Projection view is now full-page - no Split.js needed
+    // Charts view uses CSS grid - no Split.js needed
+    console.log('[Split] Disabled - projection is full-page, charts uses CSS grid');
   }
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -152,91 +137,19 @@
   }
 
   // ══════════════════════════════════════════════════════════════════════════
-  // PARTICLE STAR FIELD — Background ambient particles
+  // PARTICLE STAR FIELD — Disabled for Mission Control aesthetics
   // ══════════════════════════════════════════════════════════════════════════
-  function initParticleField() {
-    const canvas = document.getElementById('particle-canvas');
-    if (!canvas) return;
+  function initParticleField() {}
 
-    const ctx = canvas.getContext('2d');
-    let width = canvas.width = window.innerWidth;
-    let height = canvas.height = window.innerHeight;
-
-    const PARTICLE_COUNT = 60;
-    const particles = [];
-
-    class Particle {
-      constructor() {
-        this.reset();
-      }
-      reset() {
-        this.x = Math.random() * width;
-        this.y = Math.random() * height;
-        this.size = Math.random() * 1.5 + 0.5;
-        this.speedX = (Math.random() - 0.5) * 0.15;
-        this.speedY = (Math.random() - 0.5) * 0.1;
-        this.opacity = Math.random() * 0.4 + 0.1;
-        this.pulseSpeed = Math.random() * 0.02 + 0.005;
-        this.pulseOffset = Math.random() * Math.PI * 2;
-      }
-      update(time) {
-        this.x += this.speedX;
-        this.y += this.speedY;
-        if (this.x < 0 || this.x > width) this.speedX *= -1;
-        if (this.y < 0 || this.y > height) this.speedY *= -1;
-        this.currentOpacity = this.opacity * (0.5 + 0.5 * Math.sin(time * this.pulseSpeed + this.pulseOffset));
-      }
-      draw(ctx) {
-        ctx.beginPath();
-        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(74, 158, 255, ${this.currentOpacity})`;
-        ctx.fill();
-        // Tiny glow
-        ctx.beginPath();
-        ctx.arc(this.x, this.y, this.size * 3, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(74, 158, 255, ${this.currentOpacity * 0.1})`;
-        ctx.fill();
-      }
+  // ══════════════════════════════════════════════════════════════════════════
+  // RESIZE HANDLER
+  // ══════════════════════════════════════════════════════════════════════════
+  function handleResize() {
+    Bullseye.resize();
+    Gantt.resize();
+    if (cdmCache.length) {
+      Globe.resize();
     }
-
-    for (let i = 0; i < PARTICLE_COUNT; i++) {
-      particles.push(new Particle());
-    }
-
-    let time = 0;
-    function animate() {
-      ctx.clearRect(0, 0, width, height);
-      time++;
-      particles.forEach(p => {
-        p.update(time);
-        p.draw(ctx);
-      });
-
-      // Occasional connection lines between close particles
-      for (let i = 0; i < particles.length; i++) {
-        for (let j = i + 1; j < particles.length; j++) {
-          const dx = particles[i].x - particles[j].x;
-          const dy = particles[i].y - particles[j].y;
-          const dist = Math.sqrt(dx * dx + dy * dy);
-          if (dist < 120) {
-            ctx.beginPath();
-            ctx.moveTo(particles[i].x, particles[i].y);
-            ctx.lineTo(particles[j].x, particles[j].y);
-            ctx.strokeStyle = `rgba(74, 158, 255, ${0.04 * (1 - dist / 120)})`;
-            ctx.lineWidth = 0.5;
-            ctx.stroke();
-          }
-        }
-      }
-
-      requestAnimationFrame(animate);
-    }
-    animate();
-
-    window.addEventListener('resize', () => {
-      width = canvas.width = window.innerWidth;
-      height = canvas.height = window.innerHeight;
-    });
   }
 
   // ══════════════════════════════════════════════════════════════════════════

@@ -6,33 +6,33 @@
 /* ── Design Tokens ──────────────────────────────────────────────────────── */
 :root {
   /* Backgrounds */
-  --bg-void:        #030508;
-  --bg-primary:     #080d14;
-  --bg-secondary:   #0d1520;
-  --bg-tertiary:    #111d2e;
-  --border-dim:     #1a2a3e;
-  --border-glow:    #1e3a5a;
+  --bg-void:        #0d1117; /* Space Gray Void */
+  --bg-primary:     #161b22; /* Panel background */
+  --bg-secondary:   #21262d; /* Alternate background */
+  --bg-tertiary:    #30363d; /* Hover background */
+  --border-dim:     #30363d; /* Professional borders */
+  --border-glow:    #30363d; /* Glow removed */
 
   /* Text */
-  --text-primary:   #c8dff0;
-  --text-secondary: #5a7a9a;
-  --text-dim:       #2a4a6a;
+  --text-primary:   #e6edf3;
+  --text-secondary: #8b949e;
+  --text-dim:       #6e7681;
 
   /* Status Colors */
-  --blue:           #4a9eff;
-  --blue-glow:      rgba(74,158,255,0.15);
-  --green:          #2ecc71;
-  --green-glow:     rgba(46,204,113,0.15);
-  --amber:          #f39c12;
-  --amber-glow:     rgba(243,156,18,0.15);
-  --red:            #e74c3c;
-  --red-glow:       rgba(231,76,60,0.15);
-  --purple:         #9b59b6;
-  --teal:           #1abc9c;
+  --blue:           #58a6ff;
+  --blue-glow:      transparent;
+  --green:          #3fb950;
+  --green-glow:     transparent;
+  --amber:          #d29922;
+  --amber-glow:     transparent;
+  --red:            #f85149;
+  --red-glow:       transparent;
+  --purple:         #bc8cff;
+  --teal:           #39c5cf;
 
   /* Spacing */
-  --gap:            2px;
-  --panel-pad:      10px;
+  --gap:            4px;
+  --panel-pad:      16px;
 }
 
 /* ── Global Reset ───────────────────────────────────────────────────────── */
@@ -46,7 +46,7 @@ html, body {
   width: 100vw;
   height: 100vh;
   overflow: hidden;
-  font-family: 'JetBrains Mono', monospace;
+  font-family: 'Inter', 'JetBrains Mono', monospace;
   font-size: 13px;
   font-weight: 400;
   color: var(--text-primary);
@@ -151,9 +151,18 @@ html, body {
   overflow: hidden;
 }
 
+#lower-row-mini {
+  display: flex;
+  flex-direction: row;
+  width: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
 /* Split.js requires child elements to have overflow hidden and min-size 0 */
 #upper-row > .panel,
-#lower-row > .panel {
+#lower-row > .panel,
+#lower-row-mini > .panel {
   min-width: 0;
   min-height: 0;
   overflow: hidden;
@@ -161,7 +170,8 @@ html, body {
 
 /* Split.js gutter within rows */
 #upper-row > .gutter,
-#lower-row > .gutter {
+#lower-row > .gutter,
+#lower-row-mini > .gutter {
   flex-shrink: 0;
 }
 
@@ -227,7 +237,7 @@ html, body {
   width: 1px;
   transform: translateX(-50%);
   background: linear-gradient(180deg, transparent, var(--blue), transparent);
-  box-shadow: 0 0 8px var(--blue-glow), 0 0 16px var(--blue-glow);
+  box-shadow: none;
 }
 
 .gutter.gutter-vertical::after {
@@ -237,7 +247,7 @@ html, body {
   height: 1px;
   transform: translateY(-50%);
   background: linear-gradient(90deg, transparent, var(--blue), transparent);
-  box-shadow: 0 0 8px var(--blue-glow), 0 0 16px var(--blue-glow);
+  box-shadow: none;
 }
 
 /* Grip dots on gutter */
@@ -280,21 +290,17 @@ html, body {
   transition: border-color 0.5s ease;
 }
 
-/* Data stream border animation - flows around edges */
+/* Grid texture - subtle only */
 .panel::before {
   content: '';
   position: absolute;
   inset: 0;
   pointer-events: none;
   z-index: 1;
-  background-image:
-    linear-gradient(var(--border-dim) 1px, transparent 1px),
-    linear-gradient(90deg, var(--border-dim) 1px, transparent 1px);
-  background-size: 40px 40px;
-  opacity: 0.05;
+  opacity: 0;
 }
 
-/* Data stream effect on panel borders */
+/* Subtle active border flash on data update */
 .panel::after {
   content: '';
   position: absolute;

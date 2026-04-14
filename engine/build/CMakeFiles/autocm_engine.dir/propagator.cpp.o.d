@@ -1,7 +1,7 @@
 CMakeFiles/autocm_engine.dir/propagator.cpp.o: \
- /home/Code1/dev/temp/AutoCM/engine/propagator.cpp \
+ /home/Code1/dev/Projects/AutoCM/engine/propagator.cpp \
  /usr/include/stdc-predef.h \
- /home/Code1/dev/temp/AutoCM/engine/propagator.h \
+ /home/Code1/dev/Projects/AutoCM/engine/propagator.h \
  /usr/include/c++/14/string /usr/include/c++/14/bits/requires_hosted.h \
  /usr/include/x86_64-linux-gnu/c++/14/bits/c++config.h \
  /usr/include/x86_64-linux-gnu/c++/14/bits/os_defines.h \
