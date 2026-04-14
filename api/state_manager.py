@@ -137,6 +137,9 @@ class StateManager:
         self.physics_engine = physics_engine
         self.autonomy_engine = AutonomyManager(self)
 
+        # Pre-load ground stations so LOS checks work immediately
+        self.load_ground_stations()
+
     # ── Initialization ────────────────────────────────────────────────────
 
     @staticmethod
@@ -829,7 +832,6 @@ class StateManager:
     # ── Ground Station Operations (Section 5.4) ───────────────────────────
 
     def load_ground_stations(self, csv_path: str = None):
-        """Load ground station data from CSV."""
         if csv_path is None:
             csv_path = os.path.join(
                 os.path.dirname(os.path.dirname(__file__)),
@@ -838,28 +840,41 @@ class StateManager:
 
         if not os.path.exists(csv_path):
             print(f"[StateManager] Ground stations file not found: {csv_path}")
-            # Create default ground stations
             self.ground_stations = [
-                {"id": "GS-1", "lat": 28.5, "lon": -80.6, "alt_km": 0.1, "min_elevation": 5.0},
-                {"id": "GS-2", "lat": 35.0, "lon": 139.0, "alt_km": 0.1, "min_elevation": 5.0},
-                {"id": "GS-3", "lat": -30.0, "lon": 149.0, "alt_km": 0.1, "min_elevation": 5.0},
+                {"id": "GS-001", "lat": 13.0333, "lon": 77.5167, "alt_km": 0.82, "min_elevation": 5.0},
+                {"id": "GS-002", "lat": 78.2297, "lon": 15.4077, "alt_km": 0.40, "min_elevation": 5.0},
+                {"id": "GS-003", "lat": 35.4266, "lon": -116.8900, "alt_km": 1.00, "min_elevation": 10.0},
+                {"id": "GS-004", "lat": -53.1500, "lon": -70.9167, "alt_km": 0.03, "min_elevation": 5.0},
+                {"id": "GS-005", "lat": 28.5450, "lon": 77.1926, "alt_km": 0.225, "min_elevation": 15.0},
+                {"id": "GS-006", "lat": -77.8463, "lon": 166.6682, "alt_km": 0.01, "min_elevation": 5.0},
             ]
             return
 
         try:
             with open(csv_path, 'r') as f:
                 reader = csv.DictReader(f)
-                for row in reader:
+                self.ground_stations = []
+                for i, row in enumerate(reader):
                     self.ground_stations.append({
-                        "id": row.get("id", f"GS-{len(self.ground_stations)}"),
-                        "lat": float(row.get("lat", 0)),
-                        "lon": float(row.get("lon", 0)),
-                        "alt_km": float(row.get("alt_km", 0)),
-                        "min_elevation": float(row.get("min_elevation", 5.0)),
+                        "id": f"GS-{str(i+1).zfill(3)}",
+                        "lat": float(row.get("latitude_deg", row.get("lat", 0))),
+                        "lon": float(row.get("longitude_deg", row.get("lon", 0))),
+                        "alt_km": float(row.get("elevation_m", row.get("alt_km", 0))) / 1000.0
+                                 if "elevation_m" in row else float(row.get("alt_km", 0)),
+                        "min_elevation": float(row.get("min_elevation_angle_deg",
+                                                  row.get("min_elevation", 5.0))),
                     })
             print(f"[StateManager] Loaded {len(self.ground_stations)} ground stations")
         except Exception as e:
             print(f"[StateManager] Error loading ground stations: {e}")
+            self.ground_stations = [
+                {"id": "GS-001", "lat": 13.0333, "lon": 77.5167, "alt_km": 0.82, "min_elevation": 5.0},
+                {"id": "GS-002", "lat": 78.2297, "lon": 15.4077, "alt_km": 0.40, "min_elevation": 5.0},
+                {"id": "GS-003", "lat": 35.4266, "lon": -116.8900, "alt_km": 1.00, "min_elevation": 10.0},
+                {"id": "GS-004", "lat": -53.1500, "lon": -70.9167, "alt_km": 0.03, "min_elevation": 5.0},
+                {"id": "GS-005", "lat": 28.5450, "lon": 77.1926, "alt_km": 0.225, "min_elevation": 15.0},
+                {"id": "GS-006", "lat": -77.8463, "lon": 166.6682, "alt_km": 0.01, "min_elevation": 5.0},
+            ]
 
     def check_ground_station_los(self, sat_id: str, timestamp: datetime = None) -> bool:
         """Check if satellite has line-of-sight to any ground station (Section 5.4)."""
@@ -883,32 +898,45 @@ class StateManager:
             # Fallback: simple geometric check
             return self._check_los_geometric(sat, timestamp)
 
-    def _check_los_geometric(self, sat: SatelliteState, timestamp: datetime) -> bool:
-        """Fallback geometric LOS check accounting for Earth curvature."""
+    def _check_los_geometric(self, sat: 'SatelliteState', timestamp: datetime) -> bool:
         R_EARTH = 6371.0  # km
+        DEG2RAD = math.pi / 180.0
 
         for gs in self.ground_stations:
-            # Convert ground station to ECI (simplified, ignoring Earth rotation)
-            gs_r = self._latlon_to_eci(gs["lat"], gs["lon"], gs["alt_km"])
+            gs_lat_rad = gs["lat"] * DEG2RAD
+            gs_lon_rad = gs["lon"] * DEG2RAD
+            gs_alt_km  = gs.get("alt_km", 0.0)
+            min_elev   = gs.get("min_elevation", 5.0)
+
+            gs_r = R_EARTH + gs_alt_km
+            gs_pos = {
+                "x": gs_r * math.cos(gs_lat_rad) * math.cos(gs_lon_rad),
+                "y": gs_r * math.cos(gs_lat_rad) * math.sin(gs_lon_rad),
+                "z": gs_r * math.sin(gs_lat_rad),
+            }
 
             # Vector from ground station to satellite
-            dx = sat.r["x"] - gs_r["x"]
-            dy = sat.r["y"] - gs_r["y"]
-            dz = sat.r["z"] - gs_r["z"]
-            range_km = math.sqrt(dx**2 + dy**2 + dz**2)
+            dx = sat.r["x"] - gs_pos["x"]
+            dy = sat.r["y"] - gs_pos["y"]
+            dz = sat.r["z"] - gs_pos["z"]
+            range_km = math.sqrt(dx*dx + dy*dy + dz*dz)
+            if range_km < 1e-6:
+                return True
 
-            # Elevation angle calculation
-            # cos(elevation) = (r_sat * sin(range_angle)) / range
-            # Simplified: check if satellite is above horizon
-            gs_mag = math.sqrt(gs_r["x"]**2 + gs_r["y"]**2 + gs_r["z"]**2)
-            sat_mag = math.sqrt(sat.r["x"]**2 + sat.r["y"]**2 + sat.r["z"]**2)
+            # Local zenith unit vector at ground station
+            zenith_mag = math.sqrt(gs_pos["x"]**2 + gs_pos["y"]**2 + gs_pos["z"]**2)
+            zx = gs_pos["x"] / zenith_mag
+            zy = gs_pos["y"] / zenith_mag
+            zz = gs_pos["z"] / zenith_mag
 
-            # Minimum elevation check (simplified)
-            # If satellite altitude > ground station and within visible arc
-            if sat.alt_km > gs["alt_km"]:
-                # Rough check: satellite should be within ~2000km ground range for LEO
-                if range_km < 2000:
-                    return True
+            # Elevation angle = arcsin(zenith · range_unit)
+            range_unit_dot_zenith = (dx*zx + dy*zy + dz*zz) / range_km
+            # Clamp for numerical safety
+            range_unit_dot_zenith = max(-1.0, min(1.0, range_unit_dot_zenith))
+            elev_deg = math.degrees(math.asin(range_unit_dot_zenith))
+
+            if elev_deg >= min_elev:
+                return True
 
         return False
 

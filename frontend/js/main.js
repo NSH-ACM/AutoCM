@@ -67,6 +67,30 @@
       // GSAP Entrance Choreography
       playEntranceSequence();
 
+      // Wire 2D/3D toggle
+      const toggle3d = document.getElementById('toggle-3d');
+      const toggle2d = document.getElementById('toggle-2d');
+      const cesiumContainer = document.getElementById('cesium-container');
+      const groundtrackContainer = document.getElementById('groundtrack-svg-container');
+
+      if (toggle3d && toggle2d) {
+          toggle3d.addEventListener('click', () => {
+              toggle3d.classList.add('active');
+              toggle2d.classList.remove('active');
+              if (cesiumContainer) cesiumContainer.style.display = 'block';
+              if (groundtrackContainer) groundtrackContainer.style.display = 'none';
+          });
+          toggle2d.addEventListener('click', () => {
+              toggle2d.classList.add('active');
+              toggle3d.classList.remove('active');
+              if (cesiumContainer) cesiumContainer.style.display = 'none';
+              if (groundtrackContainer) {
+                  groundtrackContainer.style.display = 'flex';
+                  GroundTrack.resize();
+              }
+          });
+      }
+
       // Sim-step event fires when SpeedControl does a manual step
       document.addEventListener('sim-step', () => {
         pollSnapshot();
@@ -295,6 +319,9 @@
       Globe.updateSatellites(data.satellites);
       Globe.updateDebris(data.debris_cloud);
       Globe.updateConjunctions(cdmCache);
+    }
+    if (typeof GroundTrack !== 'undefined') {
+      GroundTrack.update(data.satellites);
     }
     
     if (typeof FuelPanel !== 'undefined') FuelPanel.update(data.satellites);

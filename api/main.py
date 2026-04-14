@@ -192,12 +192,6 @@ async def simulation_get_status():
 
 
 # Legacy endpoint aliases for backward compatibility
-@app.post("/api/simulate/step")
-async def simulate_step_legacy(body: dict = None):
-    """Legacy endpoint - redirects to /api/simulation/step"""
-    return await simulation_step(body)
-
-
 @app.post("/api/simulate/run")
 async def start_simulation_legacy(body: dict = None):
     """Legacy endpoint - redirects to /api/simulation/run"""

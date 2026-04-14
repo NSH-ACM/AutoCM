@@ -47,6 +47,9 @@ COPY data/ ./data/
 COPY frontend/ ./frontend/
 COPY core/ ./core/
 
+# Generate catalog if not present
+RUN cd /app && python3 data/generate_catalog.py 2>/dev/null || echo "[OK] Using existing catalog"
+
 # Ensure host-OS engine binaries (like .pyd or .so built on Windows/Mac) aren't mixed in
 RUN rm -f ./core/autocm_engine*.so ./core/autocm_engine*.pyd
 

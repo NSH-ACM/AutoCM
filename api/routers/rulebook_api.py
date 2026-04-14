@@ -51,27 +51,44 @@ async def post_telemetry(payload: TelemetryPayload):
     Returns: status "ACK", processed_count, active_cdm_warnings
     """
     try:
-        # Convert payload to internal format
-        objects_data = []
+        processed_count = 0
+        timestamp = StateManager.parse_iso_time(payload.timestamp)
+
         for obj in payload.objects:
-            obj_data = {
-                "id": obj.id,
-                "type": obj.type,
-                "state": {
-                    "t": StateManager.parse_iso_time(payload.timestamp),
-                    "r": obj.r,
-                    "v": obj.v
-                }
-            }
-            objects_data.append(obj_data)
-        
-        telemetry_payload = {"objects": objects_data}
-        result = state.autonomy_engine.ingest_telemetry(telemetry_payload)
-        
+            if obj.type == "SATELLITE":
+                sat_id = obj.id
+                if sat_id not in state.satellites:
+                    from api.state_manager import SatelliteState
+                    new_sat = SatelliteState(
+                        id=sat_id,
+                        lat=0.0, lon=0.0, alt_km=500.0,
+                        fuel_kg=50.0, status="NOMINAL",
+                        last_update=0.0
+                    )
+                    new_sat.r = obj.r
+                    new_sat.v = obj.v
+                    new_sat.lat, new_sat.lon, new_sat.alt_km = state._eci_to_latlon(obj.r)
+                    state.satellites[sat_id] = new_sat
+                else:
+                    sat = state.satellites[sat_id]
+                    sat.r = obj.r
+                    sat.v = obj.v
+                    sat.lat, sat.lon, sat.alt_km = state._eci_to_latlon(obj.r)
+                processed_count += 1
+            elif obj.type == "DEBRIS":
+                deb_id = obj.id
+                from api.state_manager import DebrisObject
+                deb_r = obj.r
+                lat, lon, alt = state._eci_to_latlon(deb_r)
+                state.debris[deb_id] = DebrisObject(id=deb_id, lat=lat, lon=lon, alt_km=alt)
+                processed_count += 1
+
+        state.detect_conjunctions()
+
         return {
-            "status": result["status"],
-            "processed_count": result["processed_count"],
-            "active_cdm_warnings": result["active_cdm_warnings"]
+            "status": "ACK",
+            "processed_count": processed_count,
+            "active_cdm_warnings": len(state.cdms)
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -138,7 +155,9 @@ async def schedule_maneuver(payload: ScheduleManeuverPayload):
                 })
 
         # Calculate projected mass
-        projected_mass = max(0, sat.fuel_kg - total_fuel_cost) + 500.0  # 500kg dry mass
+        dry_mass = 500.0
+        projected_fuel = max(0.0, sat.fuel_kg - total_fuel_cost)
+        projected_mass = dry_mass + projected_fuel
 
         # Return per spec Section 4.2 with nested validation object
         all_scheduled = len(failed_burns) == 0
