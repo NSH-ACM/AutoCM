@@ -51,8 +51,9 @@ The system utilizes a J2-aware RK4 propagator and `cKDTree`-optimized proximity 
 
 ### Prerequisites
 
-- Docker Engine 24.0+
-- Docker Compose 2.0+
+- Docker Engine 24.0+ (for Docker deployment)
+- Python 3.11+ (for local development)
+- pip and venv
 
 ### Docker Deployment
 
@@ -63,6 +64,28 @@ cd AutoCM
 
 # Deploy instantly
 docker compose up --build
+
+# Reach Mission Control
+# Dashboard: http://localhost:8000
+# API Docs:  http://localhost:8000/docs
+```
+
+### Local Development (Without Docker)
+
+```bash
+# Clone the repository
+git clone <repository-url>
+cd AutoCM
+
+# Create and activate virtual environment
+python3 -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+# Install dependencies
+pip install -r api/requirements.txt
+
+# Run the FastAPI server
+uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
 
 # Reach Mission Control
 # Dashboard: http://localhost:8000
@@ -116,13 +139,48 @@ All maneuevers are planned in the **Radial-Transverse-Normal (RTN)** local frame
 ```
 AutoCM/
 ├── api/                    # FastAPI Core
-│   ├── main.py            # Entry point
+│   ├── main.py            # Entry point, WebSocket, lifecycle
 │   ├── state_manager.py   # System Facade
 │   ├── models.py          # Pydantic Schemas
-│   ├── services/          # Modular logic (Fleet, Comms, Sim)
-│   └── core/              # Physics (Propagators, Screeners)
-├── data/                  # Static Catalogs & GS Database
+│   ├── core/              # Physics & Navigation
+│   │   ├── physics.py     # J2/RK4 propagator, coordinate transforms
+│   │   ├── navigation.py  # RTN frames, fuel calculations
+│   │   ├── screening.py   # KD-Tree conjunction detection
+│   │   └── autonomy_logic.py # Autonomous decision algorithms
+│   ├── services/          # Modular logic
+│   │   ├── fleet_service.py      # Satellite/debris registry
+│   │   ├── maneuver_service.py   # Burn scheduling & validation
+│   │   ├── conjunction_service.py # CDM management
+│   │   ├── comms_service.py      # Ground station LOS checks
+│   │   ├── simulation_service.py # Main orchestration loop
+│   │   └── decision_service.py   # Autonomous intelligence
+│   └── routers/           # API endpoints
+│       ├── telemetry.py   # Telemetry ingestion
+│       ├── maneuvers.py   # Maneuver commands
+│       ├── rulebook_api.py # Hackathon-compliant endpoints
+│       └── auth.py        # Authentication
 ├── frontend/              # D3.js Visualization layer
+│   ├── index.html         # Main UI
+│   ├── css/               # Styling
+│   │   ├── main.css       # Base styles
+│   │   ├── panels.css     # Panel layouts
+│   │   └── animations.css # Animations
+│   └── js/                # Visualization logic
+│       ├── main.js        # Application entry point
+│       ├── api.js         # API client
+│       ├── ws_telemetry.js # WebSocket client
+│       ├── globe.js       # Cesium 3D globe
+│       ├── groundTrack.js # 2D ground track visualization
+│       ├── bullseye.js    # Conjunction bullseye chart
+│       ├── fuel.js        # Fuel gauge visualization
+│       ├── gantt.js       # Maneuver timeline
+│       ├── telemetry.js   # Telemetry & CDM display
+│       ├── alerts.js      # Alert system
+│       ├── speedControl.js # Simulation speed control
+│       ├── drawer.js      # Satellite detail drawer
+│       ├── viewMode.js    # View mode switching
+│       └── state.js       # State management
+├── data/                  # Static Catalogs & GS Database
 ├── tests/                 # Compliance test suite
 ├── Dockerfile             # Ubuntu 22.04 base
 └── README.md              # This file

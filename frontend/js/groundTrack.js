@@ -391,14 +391,49 @@ const GroundTrack = (() => {
     // Create new debris group
     debrisGroup = g.append('g').attr('class', 'debris-group');
     
-    // Subsample debris for performance (show 1 in 50)
-    const SUBSAMPLE = 50;
-    const displayDebris = [];
-    for (let i = 0; i < debrisCloud.length; i += SUBSAMPLE) {
-      displayDebris.push(debrisCloud[i]);
-    }
+    // Get selected satellite for distance-based subsampling
+    const selectedId = AppState?.state?.selectedSatelliteId;
+    const satellites = AppState?.state?.satellites || [];
+    const selectedSat = satellites.find(s => s.id === selectedId);
     
-    console.log('[Debris] Drawing', displayDebris.length, 'debris particles (subsampled from', debrisCloud.length, ')');
+    let displayDebris = [];
+    
+    if (selectedSat && selectedSat.lat !== undefined && selectedSat.lon !== undefined) {
+      // Calculate distances from selected satellite to all debris
+      const satLat = selectedSat.lat;
+      const satLon = selectedSat.lon;
+      
+      // Calculate distance using Haversine formula approximation
+      const debrisWithDistance = debrisCloud.map(deb => {
+        const debLat = deb[1];
+        const debLon = deb[2];
+        
+        // Simple distance approximation (good enough for sorting)
+        const dLat = (debLat - satLat) * Math.PI / 180;
+        const dLon = (debLon - satLon) * Math.PI / 180;
+        const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                  Math.cos(satLat * Math.PI / 180) * Math.cos(debLat * Math.PI / 180) *
+                  Math.sin(dLon/2) * Math.sin(dLon/2);
+        const distance = 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); // km
+        
+        return { debris: deb, distance };
+      });
+      
+      // Sort by distance and take 2000 closest
+      debrisWithDistance.sort((a, b) => a.distance - b.distance);
+      const CLOSEST_COUNT = 2000;
+      displayDebris = debrisWithDistance.slice(0, CLOSEST_COUNT).map(d => d.debris);
+      
+      console.log('[Debris] Showing', displayDebris.length, 'closest debris to', selectedId);
+    } else {
+      // No satellite selected - subsample uniformly for performance
+      const SUBSAMPLE = 50;
+      for (let i = 0; i < debrisCloud.length; i += SUBSAMPLE) {
+        displayDebris.push(debrisCloud[i]);
+      }
+      
+      console.log('[Debris] Drawing', displayDebris.length, 'debris particles (subsampled from', debrisCloud.length, ')');
+    }
     
     // Draw debris as circles on SVG
     const path = d3.geoPath().projection(projection);

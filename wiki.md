@@ -516,7 +516,7 @@ AutoCM/
 │   │   └── animations.css        # Animations
 │   └── js/                       # Visualization logic
 │       ├── main.js               # Application entry point
-│       ├── api.js                # API client with demo fallback
+│       ├── api.js                # API client
 │       ├── ws_telemetry.js       # WebSocket client
 │       ├── globe.js              # Cesium 3D globe
 │       ├── groundTrack.js        # 2D ground track visualization
@@ -527,18 +527,12 @@ AutoCM/
 │       ├── alerts.js             # Alert system
 │       ├── speedControl.js       # Simulation speed control
 │       ├── drawer.js             # Satellite detail drawer
-│       └── viewMode.js           # View mode switching
+│       ├── viewMode.js           # View mode switching
+│       └── state.js              # State management
 ├── data/                         # Static data
 │   ├── catalog.json              # Initial satellite/debris catalog
-│   ├── ground_stations.csv       # Ground station database
-│   └── generate_catalog.py       # Catalog generation script
+│   └── ground_stations.csv       # Ground station database
 ├── tests/                        # Test suite
-│   ├── test_compliance.py        # Rulebook compliance tests
-│   └── test_v2_features.py       # v2 feature tests
-├── scripts/                      # Utility scripts
-│   ├── seed.js                   # Demo data seeding
-│   ├── inject_threat.py          # Manual threat injection
-│   └── tick.js                   # Simulation stepping
 ├── Dockerfile                    # Ubuntu 22.04 base image
 ├── docker-compose.yml            # Docker orchestration
 └── requirements.txt              # Python dependencies
@@ -1443,6 +1437,34 @@ docker compose up --build
 # API Docs:  http://localhost:8000/docs
 ```
 
+## Local Development (Without Docker)
+
+### Prerequisites
+- Python 3.11+
+- pip and venv
+
+### Quick Start
+
+```bash
+# Clone repository
+git clone <repository-url>
+cd AutoCM
+
+# Create and activate virtual environment
+python3 -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+# Install dependencies
+pip install -r api/requirements.txt
+
+# Run the FastAPI server
+uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
+
+# Access dashboard
+# Dashboard: http://localhost:8000
+# API Docs:  http://localhost:8000/docs
+```
+
 ### Dockerfile Breakdown
 
 ```dockerfile
@@ -1460,9 +1482,6 @@ RUN pip3 install -r requirements.txt
 COPY api/ ./api/
 COPY data/ ./data/
 COPY frontend/ ./frontend/
-
-# Generate catalog
-RUN cd /app/data && python3 generate_catalog.py
 
 # Expose port
 EXPOSE 8000
