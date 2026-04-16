@@ -103,12 +103,44 @@ class StateManager:
     def cdms(self): return self.conj.active_cdms
     
     @property
-    def maneuvers(self): 
-        # Combine executed and pending for UI
-        pending = []
+    def maneuvers(self):
+        """Return maneuvers serialized for the frontend with consistent field names.
+        Includes both scheduled (PENDING) and recently executed burns.
+        """
+        def _serialize(burn, override_status=None):
+            dv = burn.deltaV_vector
+            bid = burn.burn_id
+            if 'RECOVERY' in bid or 'REC' in bid:
+                burn_type = 'RECOVERY BURN'
+            elif 'GRAVEYARD' in bid or 'EOL' in bid:
+                burn_type = 'GRAVEYARD BURN'
+            elif 'SK-CORRECT' in bid:
+                burn_type = 'COOLDOWN'
+            else:
+                burn_type = 'EVASION BURN'
+            return {
+                "burnId":       bid,
+                "burn_id":      bid,
+                "satelliteId":  burn.satelliteId,
+                "burnTime":     burn.burnTime.isoformat(),
+                "type":         burn_type,
+                "status":       override_status or burn.status,
+                "duration":     180,
+                "deltaV":       {"x": dv.x, "y": dv.y, "z": dv.z},
+                "deltaV_vector":{"x": dv.x, "y": dv.y, "z": dv.z},
+                "fuelCost":     round(burn.fuel_cost_kg, 4),
+                "fuel_cost_kg": round(burn.fuel_cost_kg, 4),
+            }
+
+        result = []
+        # Scheduled (PENDING) burns
         for sat_burns in self.maneuver.scheduled_burns.values():
-            pending.extend(sat_burns)
-        return pending
+            for burn in sat_burns:
+                result.append(_serialize(burn))
+        # Recently executed burns (last 20) — needed for scatter chart
+        for burn in self.maneuver.executed_burns[-20:]:
+            result.append(_serialize(burn, override_status="EXECUTED"))
+        return result
 
     @property
     def ws_clients(self): return self._ws_clients

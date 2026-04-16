@@ -4,7 +4,10 @@
 
 const API = (() => {
   const BASE = '';
-  let useDemo = false;
+  // Always start in demo mode — app is always demoable.
+  // Will attempt real backend calls but never permanently lock into live mode.
+  let useDemo = true;
+  let _demoFailCount = 0;   // consecutive backend failures — only banner after 3+
   let demoTime = new Date('2026-03-12T08:00:00Z');
 
   // ── Demo Data Generator ────────────────────────────────────────────────────
@@ -130,7 +133,7 @@ const API = (() => {
   }
 
   // ── Resilient fetch helper with timeout ────────────────────────────────────
-  async function _fetch(path, opts = {}, timeoutMs = 5000) {
+  async function _fetch(path, opts = {}, timeoutMs = 8000) {
     const controller = new AbortController();
     const tid = setTimeout(() => controller.abort(), timeoutMs);
     try {
@@ -146,12 +149,22 @@ const API = (() => {
 
   // ── Public API ─────────────────────────────────────────────────────────────
   async function fetchSnapshot() {
-    if (useDemo) return getDemoSnapshot();
+    // Always try real backend opportunistically; fall back to demo seamlessly.
+    // Only flag as "demo mode" after 3 consecutive failures (avoids page-load race).
     try {
-      return await _fetch('/api/visualization/snapshot');
+      const data = await _fetch('/api/visualization/snapshot');
+      if (data && data.satellites && data.satellites.length > 0) {
+        useDemo = false;      // real backend is responding
+        _demoFailCount = 0;   // reset failure streak
+        return data;
+      }
+      return getDemoSnapshot();
     } catch (e) {
-      console.warn('[API] Switching to demo mode:', e.message);
-      useDemo = true;
+      _demoFailCount++;
+      if (_demoFailCount >= 3) {
+        useDemo = true;  // only lock to demo after repeated failures
+        console.info('[API] Backend unavailable after 3 retries — demo mode active');
+      }
       return getDemoSnapshot();
     }
   }
@@ -171,21 +184,32 @@ const API = (() => {
   }
 
   async function simulateStep(stepSeconds = 60) {
-    if (useDemo) { demoTime = new Date(demoTime.getTime() + stepSeconds * 1000); return null; }
-    return _fetch('/api/simulate/step', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ step_seconds: stepSeconds }),
-    });
+    if (useDemo) {
+      demoTime = new Date(demoTime.getTime() + stepSeconds * 1000);
+      return null;
+    }
+    try {
+      return await _fetch('/api/simulate/step', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ step_seconds: stepSeconds }),
+      });
+    } catch (_) {
+      // Fall back gracefully
+      demoTime = new Date(demoTime.getTime() + stepSeconds * 1000);
+      return null;
+    }
   }
 
   async function startAutoSim(stepSeconds = 60, intervalMs = 1000) {
     if (useDemo) return;
-    return _fetch('/api/simulate/run', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ step_seconds: stepSeconds, real_interval_ms: intervalMs }),
-    });
+    try {
+      return await _fetch('/api/simulate/run', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ step_seconds: stepSeconds, real_interval_ms: intervalMs }),
+      });
+    } catch (_) {}
   }
 
   async function stopAutoSim() {
@@ -196,13 +220,16 @@ const API = (() => {
   }
 
   async function getSimStatus() {
-    if (useDemo) return { running: false };
+    if (useDemo) return { running: true, mode: 'DEMO' };
     try { return await _fetch('/api/simulate/status'); } catch (_) { return { running: false }; }
   }
 
   async function fetchHealth() {
-    if (useDemo) return { status: 'OK (DEMO)', sim_time: demoTime.toISOString() };
-    try { return await _fetch('/health'); } catch (_) { return null; }
+    if (useDemo) return { status: 'DEMO MODE', sim_time: demoTime.toISOString() };
+    try { return await _fetch('/health'); } catch (_) {
+      useDemo = true;
+      return { status: 'DEMO MODE', sim_time: demoTime.toISOString() };
+    }
   }
 
   function getDemoCDMs() {
@@ -217,6 +244,7 @@ const API = (() => {
   }
 
   function isDemo()    { return useDemo; }
+  function setDemo(val) { useDemo = !!val; }
   function getDemoTime() { return demoTime; }
 
   return {
@@ -224,6 +252,6 @@ const API = (() => {
     simulateStep, startAutoSim, stopAutoSim, getSimStatus,
     fetchHealth,
     getDemoCDMs, getDemoManeuvers,
-    isDemo, getDemoTime,
+    isDemo, setDemo, getDemoTime,
   };
 })();

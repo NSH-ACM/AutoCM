@@ -9,13 +9,11 @@
   const SNAPSHOT_INTERVAL = 5000;
   const STATS_INTERVAL    = 10000;
   const CLOCK_INTERVAL    = 2000;
-  const DEMO_MODE_DELAY_MS = 20000; // 20 seconds before demo mode
 
   let simTimestamp = new Date().toISOString();
   let cdmCache = [];
   let maneuverCache = [];
   let prevStatValues = [];
-  let connectionFailureTime = null;
 
   // ══════════════════════════════════════════════════════════════════════════
   // INIT
@@ -274,32 +272,12 @@
       const data = await API.fetchSnapshot();
       if (!data) {
         console.warn('[Poll] No data received');
-        // Track connection failure
-        if (!connectionFailureTime) {
-          connectionFailureTime = Date.now();
-        }
-        // Only activate demo mode after 20 seconds
-        if (Date.now() - connectionFailureTime > DEMO_MODE_DELAY_MS) {
-          console.warn('[Poll] Connection failed for 20+ seconds, activating demo mode');
-        }
         return;
       }
-      
-      // Reset connection failure timer on successful fetch
-      connectionFailureTime = null;
-      
       const latency = performance.now() - start;
       handleDataUpdate(data, latency);
     } catch (e) {
       console.error('[Poll] Snapshot error:', e);
-      // Track connection failure
-      if (!connectionFailureTime) {
-        connectionFailureTime = Date.now();
-      }
-      // Only activate demo mode after 20 seconds
-      if (Date.now() - connectionFailureTime > DEMO_MODE_DELAY_MS) {
-        console.warn('[Poll] Connection failed for 20+ seconds, activating demo mode');
-      }
     }
   }
 
@@ -308,10 +286,10 @@
 
     console.log('[Data Update] Received data at:', data.timestamp, 'with', data.satellites?.length, 'satellites');
 
-    // Disable demo mode indicator - always use real backend
+    // Show/hide demo mode indicator
     const demoIndicator = document.getElementById('demo-mode-indicator');
     if (demoIndicator) {
-      demoIndicator.style.display = 'none';
+      demoIndicator.style.display = API.isDemo() ? 'flex' : 'none';
     }
 
     AppState.setApiLatency(latency);

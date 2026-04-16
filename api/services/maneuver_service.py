@@ -43,7 +43,11 @@ class ManeuverService:
         sorted_burns = sorted(burns, key=lambda b: b.burnTime)
         
         for burn in sorted_burns:
-            # 0. LOS Check (Section 5.4) - if comms_service provided
+            # 0a. Dedup: skip if this exact burn_id is already scheduled
+            if any(b.burn_id == burn.burn_id for b in self.scheduled_burns[sat_id]):
+                continue
+
+            # 0b. LOS Check (Section 5.4)
             has_los = True
             if comms_service is not None and sat_r_eci is not None:
                 has_los = comms_service.has_los(sat_r_eci, sim_time)
@@ -80,14 +84,15 @@ class ManeuverService:
                 continue
             
             # 3. Thrust Limit Check (Section 5.1)
-            # delta_v is in m/s
-            dv_mag = np.linalg.norm(burn.deltaV_vector.to_np())
-            if dv_mag > 15.0:
-                results["failed"].append({"id": burn.burn_id, "reason": f"Thrust limit violation (15.0 m/s): {dv_mag:.2f} m/s"})
+            # deltaV_vector is stored in km/s (physics units) — convert to m/s for checks
+            dv_mag_kms = np.linalg.norm(burn.deltaV_vector.to_np())
+            dv_mag_ms  = dv_mag_kms * 1000.0  # km/s → m/s
+            if dv_mag_ms > 15.0:
+                results["failed"].append({"id": burn.burn_id, "reason": f"Thrust limit violation (15.0 m/s): {dv_mag_ms:.2f} m/s"})
                 continue
-            
-            # 4. Fuel Check
-            fuel_cost = self.navigator.compute_fuel_cost(500.0 + temp_fuel, dv_mag)
+
+            # 4. Fuel Check (Tsiolkovsky expects m/s)
+            fuel_cost = self.navigator.compute_fuel_cost(500.0 + temp_fuel, dv_mag_ms)
             
             if fuel_cost > temp_fuel:
                 results["failed"].append({"id": burn.burn_id, "reason": "Insufficient propellant"})
@@ -117,8 +122,13 @@ class ManeuverService:
         return pending
 
     def mark_executed(self, sat_id: str, burn_id: str):
-        """Clean up schedule after execution."""
+        """Clean up schedule after execution and track in executed list."""
         if sat_id in self.scheduled_burns:
+            for burn in self.scheduled_burns[sat_id]:
+                if burn.burn_id == burn_id:
+                    burn.status = "EXECUTED"
+                    self.executed_burns.append(burn)
+                    break
             self.scheduled_burns[sat_id] = [b for b in self.scheduled_burns[sat_id] if b.burn_id != burn_id]
 
     def process_upload_queue(self, sat_id: str, sim_time: datetime, comms_service, sat_r_eci, current_fuel_kg: float) -> Dict:

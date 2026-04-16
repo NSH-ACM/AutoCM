@@ -412,11 +412,25 @@ async def _simulation_loop():
 
 async def _websocket_broadcast_loop():
     """Broadcast snapshots to all connected WebSocket clients."""
+    import datetime as _dt
+
+    class _SafeEncoder(json.JSONEncoder):
+        def default(self, obj):
+            if isinstance(obj, (_dt.datetime, _dt.date)):
+                return obj.isoformat()
+            try:
+                from pydantic import BaseModel
+                if isinstance(obj, BaseModel):
+                    return obj.model_dump()
+            except ImportError:
+                pass
+            return super().default(obj)
+
     while True:
         try:
             if state.ws_clients:
                 snapshot = state.get_snapshot()
-                msg = json.dumps({"type": "snapshot", "data": snapshot})
+                msg = json.dumps({"type": "snapshot", "data": snapshot}, cls=_SafeEncoder)
                 dead_clients = set()
 
                 for ws in list(state.ws_clients):

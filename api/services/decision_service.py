@@ -90,13 +90,17 @@ class DecisionService:
             # Evasion Strategy: 10 m/s Prograde (Section 5.1/5.3)
             # Recovery Strategy: 10 m/s Retrograde after 45 mins (half orbit avg)
             tca = cdm.tca
-            # Reduced lookahead for demo: 60 seconds instead of 30 minutes
-            burn_time_eva = tca - timedelta(seconds=60)
-            burn_time_rec = tca + timedelta(minutes=15) # After threat passed
-            
-            # LOS and Latency checks are handled by the ManeuverService/StateManager
-            # during scheduling, but we ensure we plan ahead.
-            if (burn_time_eva - sim_time).total_seconds() < 11:
+            # Schedule evasion burn ASAP (min 15s from now to satisfy latency rule)
+            # If TCA is more than 75s away, burn 60s before TCA; otherwise burn immediately
+            min_burn_time = sim_time + timedelta(seconds=15)
+            preferred_eva  = tca - timedelta(seconds=60)
+            burn_time_eva  = max(preferred_eva, min_burn_time)
+
+            # Recovery burn: 30 minutes after evasion (safely past cooldown)
+            burn_time_rec = burn_time_eva + timedelta(minutes=30)
+
+            # Skip if even the minimum burn is past TCA (satellite already past the debris)
+            if burn_time_eva >= tca and (tca - sim_time).total_seconds() < 0:
                 continue
 
             from ..core.navigation import Navigator

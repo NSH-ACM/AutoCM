@@ -33,7 +33,7 @@ class SimulationService:
         
         self.sim_time = datetime(2026, 3, 12, 8, 0, 0)
         self.running = False
-        self.step_seconds = 60.0
+        self.step_seconds = 10.0   # 10s steps: screener catches short TCA windows
 
     def step(self, dt: float) -> Dict[str, Any]:
         """
@@ -129,23 +129,24 @@ class SimulationService:
             deb.v.x, deb.v.y, deb.v.z = new_v
 
         # ── 3. Screen for Conjunctions ───────────────────────────────────────
+        # Run at current propagated positions
         sats = list(self.fleet.satellites.values())
         debs = list(self.fleet.debris.values())
         self.conj.screen_fleet(sats, debs, target_time)
-        
+
         # Check for immediate collisions (Section 3.3)
         for cdm in self.conj.active_cdms:
             if cdm.missDistance < 0.1: # 100m
                 collisions_detected += 1
         
+        self.sim_time = target_time
+
         # ── 3.5. Station-Keeping Check ───────────────────────────────────────
-        # Check satellites for drift and schedule RTN-based proportional corrections
+        # IMPORTANT: run AFTER sim_time is updated so burn times land in next tick
         if self.decision:
-            sk_actions = self.decision.check_station_keeping(sats, initial_time)
+            sk_actions = self.decision.check_station_keeping(sats, self.sim_time)
             for action in sk_actions:
                 print(f"[STATION_KEEPING] {action['type']} for {action['satellite_id']} | Drift: {action.get('drift_km', 0):.2f}km")
-
-        self.sim_time = target_time
         
         # ── 4. Autonomous Intelligence ───────────────────────────────────────
         if self.decision:
