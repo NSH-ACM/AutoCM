@@ -82,7 +82,7 @@
 
     // Force initial data load with retry to ensure sim shows up
     let initialLoadAttempts = 0;
-    const MAX_INITIAL_ATTEMPTS = 5;
+    const MAX_INITIAL_ATTEMPTS = 15;
     async function forceInitialLoad() {
       try {
         const data = await API.fetchSnapshot();
@@ -93,6 +93,8 @@
           initialLoadAttempts++;
           console.log(`[Init] Retrying initial load (${initialLoadAttempts}/${MAX_INITIAL_ATTEMPTS})...`);
           setTimeout(forceInitialLoad, 1000);
+        } else {
+          console.error('[Init] All retry attempts failed to load initial data');
         }
       } catch (e) {
         if (initialLoadAttempts < MAX_INITIAL_ATTEMPTS) {
@@ -100,7 +102,7 @@
           console.log(`[Init] Initial load failed, retrying (${initialLoadAttempts}/${MAX_INITIAL_ATTEMPTS})...`);
           setTimeout(forceInitialLoad, 1000);
         } else {
-          console.error('[Init] All retry attempts failed, will use demo mode');
+          console.error('[Init] All retry attempts failed. Please ensure the backend is running and seeded.');
         }
       }
     }
@@ -220,16 +222,6 @@
     try {
       const stats = await API.fetchConstellationStats();
       if (!stats) {
-        // Demo mode: generate synthetic ΔV that grows slowly
-        if (API.isDemo()) {
-          const elapsed = (API.getDemoTime() - new Date('2026-03-12T08:00:00Z')) / 3600000;
-          const syntheticDv = elapsed * 0.12; // ~0.12 m/s per sim-hour
-          AppState.addDvDataPoint(syntheticDv);
-          Telemetry.updateDvChart(AppState.state.dvHistory);
-
-          const totalEl = document.getElementById('dv-total');
-          if (totalEl) totalEl.textContent = syntheticDv.toFixed(2) + ' m/s';
-        }
         return;
       }
 
@@ -286,31 +278,10 @@
 
     console.log('[Data Update] Received data at:', data.timestamp, 'with', data.satellites?.length, 'satellites');
 
-    // Show/hide demo mode indicator
-    const demoIndicator = document.getElementById('demo-mode-indicator');
-    if (demoIndicator) {
-      demoIndicator.style.display = API.isDemo() ? 'flex' : 'none';
-    }
-
     AppState.setApiLatency(latency);
     simTimestamp = data.timestamp;
     cdmCache = data.cdms || [];
     maneuverCache = data.maneuvers || [];
-    
-    // Inject test CDMs for live demo if no CDMs exist
-    if (cdmCache.length === 0 && data.satellites && data.satellites.length > 0) {
-      const now = new Date(data.timestamp);
-      const sat = data.satellites[0];
-      cdmCache = [{
-        satelliteId: sat.id,
-        debrisId: 'TEST-DEBRIS-001',
-        tca: new Date(now.getTime() + 8 * 60 * 60 * 1000).toISOString(), // 8 hours in future
-        missDistance: 0.5, // 0.5 km - warning threshold
-        probability: 0.01,
-        relative_v: { x: 0.1, y: 0.1, z: 0.1 }
-      }];
-      console.log('[Demo] Injected test CDM for live demo');
-    }
 
     AppState.updateSnapshot(data);
     AppState.updateCDMs(cdmCache);
