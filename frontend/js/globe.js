@@ -32,14 +32,14 @@ const Globe = (() => {
   ];
 
   const STATUS_COLORS = {
-    NOMINAL:    Cesium.Color.fromCssColorString('#4a9eff'),
-    EVADING:    Cesium.Color.fromCssColorString('#9b59b6'),
-    RECOVERING: Cesium.Color.fromCssColorString('#1abc9c'),
-    EOL:        Cesium.Color.fromCssColorString('#e74c3c'),
+    NOMINAL:    Cesium.Color.fromCssColorString('#2ecc71'),  // Green
+    EVADING:    Cesium.Color.fromCssColorString('#9b59b6'),  // Purple
+    RECOVERING: Cesium.Color.fromCssColorString('#f39c12'),  // Orange
+    EOL:        Cesium.Color.fromCssColorString('#6e7681'),  // Gray
   };
 
   const STATUS_PIXEL_SIZE = {
-    NOMINAL: 6, EVADING: 9, RECOVERING: 7, EOL: 5,
+    NOMINAL: 12, EVADING: 16, RECOVERING: 14, EOL: 10,
   };
 
   // ── Initialize ───────────────────────────────────────────────────────────
@@ -236,9 +236,9 @@ const Globe = (() => {
       const entity = viewer.entities.add({
         position: Cesium.Cartesian3.fromDegrees(gs.lon, gs.lat, 0),
         point: {
-          pixelSize: 6,
-          color: Cesium.Color.fromCssColorString('#1e5a8a'),
-          outlineColor: Cesium.Color.fromCssColorString('#4a9eff').withAlpha(0.4),
+          pixelSize: 8,
+          color: Cesium.Color.fromCssColorString('#C0C0C0'),  // Metallic silver
+          outlineColor: Cesium.Color.fromCssColorString('#E8E8E8').withAlpha(0.6),
           outlineWidth: 2,
           disableDepthTestDistance: Number.POSITIVE_INFINITY,
           heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
@@ -321,8 +321,8 @@ const Globe = (() => {
 
       satIdMap[sat.id] = { index: idx, sat, position: pos, point };
 
-      // Orbit trails — only for small constellations for performance
-      if (satellites.length <= 60) {
+      // Orbit trails — ONLY for selected satellite
+      if (sat.id === selectedId) {
         addOrbitTrail(sat);
       }
     });
@@ -355,10 +355,10 @@ const Globe = (() => {
   }
 
   // ── Update Debris Cloud — PERFORMANCE FIX ────────────────────────────────
-  // Only show a subset of debris (1 in 5) to reduce GPU load
+  // Only show a subset of debris (1 in 3) to reduce GPU load
   function updateDebris(debrisCloud) {
     if (!isInitialized) return;
-    const SUBSAMPLE = 5; // show every 5th debris particle
+    const SUBSAMPLE = 3; // show every 3rd debris particle (increased visibility)
     const displayLen = Math.ceil(debrisCloud.length / SUBSAMPLE);
 
     // Fast path: if counts match, update in place
@@ -367,6 +367,8 @@ const Globe = (() => {
         const deb = debrisCloud[i * SUBSAMPLE];
         const p = debrisPointCollection.get(i);
         p.position = Cesium.Cartesian3.fromDegrees(deb[2], deb[1], deb[3] * 1000);
+        p.color = Cesium.Color.fromCssColorString('rgba(255, 51, 51, 1.0)');  // Bright red
+        p.outlineColor = Cesium.Color.fromCssColorString('rgba(255, 0, 0, 0.8)');
       }
       return;
     }
@@ -377,8 +379,11 @@ const Globe = (() => {
       const deb = debrisCloud[i];
       debrisPointCollection.add({
         position: Cesium.Cartesian3.fromDegrees(deb[2], deb[1], deb[3] * 1000),
-        pixelSize: 1.5,
-        color: Cesium.Color.fromCssColorString('rgba(243,156,18,0.35)'),
+        pixelSize: 4.0,
+        color: Cesium.Color.fromCssColorString('rgba(255, 51, 51, 1.0)'),  // Bright red
+        outlineColor: Cesium.Color.fromCssColorString('rgba(255, 0, 0, 0.8)'),
+        outlineWidth: 2,
+        disableDepthTestDistance: Number.POSITIVE_INFINITY,
       });
     }
   }

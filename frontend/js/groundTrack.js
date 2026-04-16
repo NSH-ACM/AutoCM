@@ -35,12 +35,17 @@ const GroundTrack = (() => {
 
     _measure(container);
 
-    // Canvas layer (underneath SVG for debris)
+    // Canvas layer (underneath    // Canvas for debris rendering
     canvas = document.getElementById('debris-canvas');
     if (canvas) {
-      canvas.width  = width;
+      canvas.width = width;
       canvas.height = height;
       ctx = canvas.getContext('2d');
+      console.log('[Canvas] Canvas initialized:', width, 'x', height);
+      console.log('[Canvas] Canvas element:', canvas);
+      console.log('[Canvas] Canvas style:', canvas.style.cssText);
+    } else {
+      console.error('[Canvas] Debris canvas element not found!');
     }
 
     // SVG setup
@@ -57,9 +62,6 @@ const GroundTrack = (() => {
     _drawGraticule();
     _loadWorld();     // async — draws countries when ready
     _drawStaticLines();
-
-    // Start canvas render loop
-    _scheduleDebrisFrame();
   }
 
   function _measure(container) {
@@ -126,10 +128,11 @@ const GroundTrack = (() => {
   }
 
   function _drawBackground() {
-    g.append('rect')
-      .attr('width', width)
-      .attr('height', height)
-      .attr('fill', '#0d1117');
+    // No background fill - let debris canvas show through
+    // g.append('rect')
+    //   .attr('width', width)
+    //   .attr('height', height)
+    //   .attr('fill', '#0d1117');
   }
 
   function _drawGraticule() {
@@ -261,6 +264,7 @@ const GroundTrack = (() => {
     g.selectAll('.sat-trail').remove();
     g.selectAll('.sat-predicted').remove();
     g.selectAll('.sat-pulse').remove();
+    g.selectAll('.sat-click-target').remove();
     g.selectAll('.sat-marker').remove();
     g.selectAll('.sat-label').remove();
 
@@ -270,30 +274,32 @@ const GroundTrack = (() => {
       const isSelected = sat.id === selectedId;
       const isEvading  = sat.status === 'EVADING';
 
-      // ── Historical trail (90 min) ──
-      const histFeature = _orbitTrail(sat.lon, sat.lat, -90);
-      g.append('path')
-        .attr('class', 'sat-trail')
-        .datum(histFeature)
-        .attr('d', path)
-        .attr('fill', 'none')
-        .attr('stroke', isSelected ? '#58a6ff' : '#58a6ff')
-        .attr('stroke-opacity', isSelected ? 0.8 : 0.3)
-        .attr('stroke-width', isSelected ? 2 : 1.2)
-        .attr('opacity', isSelected ? 0.8 : 0.4);
+      // ── Historical trail (90 min) — ONLY for selected satellite ──
+      if (isSelected) {
+        const histFeature = _orbitTrail(sat.lon, sat.lat, -90);
+        g.append('path')
+          .attr('class', 'sat-trail')
+          .datum(histFeature)
+          .attr('d', path)
+          .attr('fill', 'none')
+          .attr('stroke', '#58a6ff')
+          .attr('stroke-opacity', 0.8)
+          .attr('stroke-width', 2)
+          .attr('opacity', 0.8);
 
-      // ── Predicted trajectory (90 min) — dashed ──
-      const predFeature = _orbitTrail(sat.lon, sat.lat, 90);
-      g.append('path')
-        .attr('class', 'sat-predicted')
-        .datum(predFeature)
-        .attr('d', path)
-        .attr('fill', 'none')
-        .attr('stroke', isSelected ? '#d29922' : '#d29922')
-        .attr('stroke-opacity', isSelected ? 0.85 : 0.25)
-        .attr('stroke-width', isSelected ? 2 : 1.2)
-        .attr('stroke-dasharray', '5,3')
-        .attr('opacity', isSelected ? 0.85 : 0.35);
+        // ── Predicted trajectory (90 min) — dashed — ONLY for selected satellite ──
+        const predFeature = _orbitTrail(sat.lon, sat.lat, 90);
+        g.append('path')
+          .attr('class', 'sat-predicted')
+          .datum(predFeature)
+          .attr('d', path)
+          .attr('fill', 'none')
+          .attr('stroke', '#d29922')
+          .attr('stroke-opacity', 0.85)
+          .attr('stroke-width', 2)
+          .attr('stroke-dasharray', '5,3')
+          .attr('opacity', 0.85);
+      }
 
       // ── EVADING pulse ring ──
       if (isEvading || isSelected) {
@@ -311,17 +317,37 @@ const GroundTrack = (() => {
 
       // ── Marker ──
       const [mx, my] = projection([sat.lon, sat.lat]) || [0, 0];
+      // Color by status: green (NOMINAL), purple (EVADING), orange (RECOVERING), gray (EOL), white (selected)
       const markerColor = sat.status === 'EOL'      ? '#6e7681'
-                        : sat.status === 'EVADING'  ? '#f85149'
-                        : sat.status === 'RECOVERING' ? '#d29922'
+                        : sat.status === 'EVADING'  ? '#9b59b6'
+                        : sat.status === 'RECOVERING' ? '#f39c12'
                         : isSelected               ? '#ffffff'
-                        : '#3fb950';
+                        : '#2ecc71';
 
+      // Invisible larger click target for easier clicking
+      g.append('circle')
+        .attr('class', 'sat-click-target')
+        .attr('cx', mx)
+        .attr('cy', my)
+        .attr('r', 15)
+        .attr('fill', 'transparent')
+        .style('cursor', 'pointer')
+        .on('click', (event) => {
+          event.stopPropagation();
+          console.log('[Click] Satellite clicked:', sat.id);
+          if (typeof AppState !== 'undefined') {
+            AppState.selectSatellite(sat.id);
+            console.log('[Click] Selected satellite:', sat.id);
+          }
+          if (typeof Globe !== 'undefined')    Globe.flyToSatelliteById(sat.id);
+        });
+
+      // Visible marker
       g.append('circle')
         .attr('class', 'sat-marker')
         .attr('cx', mx)
         .attr('cy', my)
-        .attr('r', isSelected ? 6 : 4)
+        .attr('r', isSelected ? 5 : 4)
         .attr('fill', markerColor)
         .attr('stroke', isSelected ? '#58a6ff' : '#0d1117')
         .attr('stroke-width', isSelected ? 2 : 1)
@@ -351,51 +377,47 @@ const GroundTrack = (() => {
     _updateTerminator(simTime || AppState?.state?.simTime);
   }
 
-  // ── Canvas Debris Render Loop ─────────────────────────────────────────────
+  // ── SVG Debris Rendering (more reliable than canvas) ─────────────────────
+  let debrisGroup = null;
+  
   function updateDebris(debrisCloud) {
-    _debrisData = debrisCloud || [];
-  }
-
-  function _drawDebrisFrame() {
-    if (!ctx || !canvas) { rafId = null; _scheduleDebrisFrame(); return; }
-
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    const len = _debrisData.length;
-    if (len === 0) { _scheduleDebrisFrame(); return; }
-
-    // Batch render by altitude colour band (greens = lower LEO, blues = higher)
-    // _debrisData format: [id, lat, lon, alt_km]
-    // Limit debris for clarity: show max 2000 particles
-    const maxDebris = 2000;
-    const displayLen = Math.min(len, maxDebris);
+    if (!g) return;
     
-    ctx.globalAlpha = 0.6;
-    for (let i = 0; i < displayLen; i++) {
-      const d = _debrisData[i];
-      const lat = d[1], lon = d[2], alt = d[3];
-      const pt  = projection([lon, lat]);
-      if (!pt) continue;
-
-      // Colour by altitude: <450 ~ orange/red, 450–600 ~ yellow, >600 ~ blue
-      let r, g2, b;
-      if (alt < 450) {
-        r = 220; g2 = 80; b = 40;
-      } else if (alt < 600) {
-        r = 210; g2 = 180; b = 50;
-      } else {
-        r = 60; g2 = 130; b = 230;
-      }
-
-      ctx.fillStyle = `rgb(${r},${g2},${b})`;
-      ctx.fillRect(pt[0] - 0.5, pt[1] - 0.5, 2, 2);
+    // Remove old debris
+    if (debrisGroup) {
+      debrisGroup.remove();
     }
-    ctx.globalAlpha = 1.0;
-    _scheduleDebrisFrame();
-  }
-
-  function _scheduleDebrisFrame() {
-    rafId = requestAnimationFrame(_drawDebrisFrame);
+    
+    // Create new debris group
+    debrisGroup = g.append('g').attr('class', 'debris-group');
+    
+    // Subsample debris for performance (show 1 in 50)
+    const SUBSAMPLE = 50;
+    const displayDebris = [];
+    for (let i = 0; i < debrisCloud.length; i += SUBSAMPLE) {
+      displayDebris.push(debrisCloud[i]);
+    }
+    
+    console.log('[Debris] Drawing', displayDebris.length, 'debris particles (subsampled from', debrisCloud.length, ')');
+    
+    // Draw debris as circles on SVG
+    const path = d3.geoPath().projection(projection);
+    
+    debrisGroup.selectAll('circle')
+      .data(displayDebris)
+      .enter()
+      .append('circle')
+      .attr('cx', d => {
+        const pt = projection([d[2], d[1]]);
+        return pt ? pt[0] : 0;
+      })
+      .attr('cy', d => {
+        const pt = projection([d[2], d[1]]);
+        return pt ? pt[1] : 0;
+      })
+      .attr('r', 3)
+      .attr('fill', '#ff0033')
+      .attr('opacity', 0.8);
   }
 
   // ── Orbit Trail Generator ─────────────────────────────────────────────────

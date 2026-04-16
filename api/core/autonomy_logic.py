@@ -407,7 +407,8 @@ class AutonomyManager:
             sat = satellites.get(sat_id)
             if not sat:
                 continue
-
+            sat_r = sat.r.to_np()
+            sat_v = sat.v.to_np()
             status = sat.get('status', SatelliteStatus.NOMINAL) if isinstance(sat, dict) else getattr(sat, 'status', SatelliteStatus.NOMINAL)
             if status in (SatelliteStatus.EVADING, SatelliteStatus.EOL):
                 print(f"[AUTONOMY] CDM skip: {sat_id} already {status}")

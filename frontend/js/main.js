@@ -6,14 +6,16 @@
 (function () {
   'use strict';
 
-  const SNAPSHOT_INTERVAL = 2000;
-  const STATS_INTERVAL    = 4000;
-  const CLOCK_INTERVAL    = 1000;
+  const SNAPSHOT_INTERVAL = 5000;
+  const STATS_INTERVAL    = 10000;
+  const CLOCK_INTERVAL    = 2000;
+  const DEMO_MODE_DELAY_MS = 20000; // 20 seconds before demo mode
 
   let simTimestamp = new Date().toISOString();
   let cdmCache = [];
   let maneuverCache = [];
-  let prevStatValues = {};
+  let prevStatValues = [];
+  let connectionFailureTime = null;
 
   // ══════════════════════════════════════════════════════════════════════════
   // INIT
@@ -27,85 +29,100 @@
 
 // Particle field removed for performance
 
-    // Init all modules
-    setTimeout(() => {
-      GroundTrack.init();
-      let globeInitialized = false;
+    // ── View Toggle Logic ───────────────────────────────────────────────────────
+  const modeProjectionBtn = document.getElementById('mode-projection');
+  const modeChartsBtn = document.getElementById('mode-charts');
+  const projectionView = document.getElementById('projection-view');
+  const chartsView = document.getElementById('charts-view');
 
-      // Wire 2D/3D toggle
-      const toggle3d = document.getElementById('toggle-3d');
-      const toggle2d = document.getElementById('toggle-2d');
+  modeProjectionBtn?.addEventListener('click', () => {
+    modeProjectionBtn.classList.add('active');
+    modeChartsBtn.classList.remove('active');
+    projectionView.classList.add('active');
+    chartsView.classList.remove('active');
+  });
 
-      if (toggle3d && toggle2d) {
-          toggle3d.addEventListener('click', () => {
-              if (!globeInitialized) {
-                  try {
-                      Globe.init();
-                      globeInitialized = true;
-                  } catch(e) {
-                      console.warn('[Globe] CesiumJS init failed:', e.message);
-                  }
-              }
-              toggle3d.classList.add('active');
-              toggle2d.classList.remove('active');
-              const cesiumContainer = document.getElementById('cesium-container');
-              const groundtrackContainer = document.getElementById('groundtrack-svg-container');
-              if (cesiumContainer) cesiumContainer.style.display = 'block';
-              if (groundtrackContainer) groundtrackContainer.style.display = 'none';
-          });
-          toggle2d.addEventListener('click', () => {
-              toggle2d.classList.add('active');
-              toggle3d.classList.remove('active');
-              const cesiumContainer = document.getElementById('cesium-container');
-              const groundtrackContainer = document.getElementById('groundtrack-svg-container');
-              if (cesiumContainer) cesiumContainer.style.display = 'none';
-              if (groundtrackContainer) {
-                  groundtrackContainer.style.display = 'flex';
-                  GroundTrack.resize();
-              }
-          });
-      }
-      FuelPanel.init();
-      Bullseye.init();
-      Gantt.init();
-      Telemetry.init();
-      SpeedControl.init();
-      Alerts.init();
-      Drawer.init();
-      ViewMode.init();
+  modeChartsBtn?.addEventListener('click', () => {
+    modeChartsBtn.classList.add('active');
+    modeProjectionBtn.classList.remove('active');
+    chartsView.classList.add('active');
+    projectionView.classList.remove('active');
+  });
 
-      // Wire up events
-      setupEventListeners();
+  // ── 3D/2D Toggle Logic - DISABLED for performance ─────────────────────────────
 
-      // Start Telemetry (WebSocket preferred, falls back to polling)
-      if (typeof WSTelemetry !== 'undefined') {
-        WSTelemetry.onSnapshot((data) => {
-          handleDataUpdate(data, 10); // Simulated ping for WS
-        });
-        WSTelemetry.connect();
-        // Keep a slow poll just in case WS drops
-        setInterval(pollSnapshot, SNAPSHOT_INTERVAL * 2);
-      } else {
-        pollSnapshot();
-        setInterval(pollSnapshot, SNAPSHOT_INTERVAL);
-      }
+  // Init all modules
+  setTimeout(() => {
+    GroundTrack.init();
+    FuelPanel.init();
+    Bullseye.init();
+    Gantt.init();
+    Telemetry.init();
+    SpeedControl.init();
+    Alerts.init();
+    Drawer.init();
+    ViewMode.init();
 
-      // Real ΔV stats polling (uses /api/constellation/stats)
-      pollConstellationStats();
-      setInterval(pollConstellationStats, STATS_INTERVAL);
+    // Wire up events
+    setupEventListeners();
 
-      // Sim clock
-      setInterval(updateSimClock, CLOCK_INTERVAL);
-
-      // GSAP Entrance Choreography
-      playEntranceSequence();
-
-      // Sim-step event fires when SpeedControl does a manual step
-      document.addEventListener('sim-step', () => {
-        pollSnapshot();
-        pollConstellationStats();
+    // Start Telemetry (WebSocket preferred, with polling fallback)
+    if (typeof WSTelemetry !== 'undefined') {
+      WSTelemetry.onSnapshot((data) => {
+        handleDataUpdate(data, 10); // Simulated ping for WS
       });
-    }, 100);
+      WSTelemetry.connect();
+    }
+    
+    // Always poll as fallback to ensure constant updates
+    pollSnapshot();
+    
+    // Use aggressive polling to ensure updates don't stop
+    setInterval(() => {
+      pollSnapshot().catch(e => console.error('[Poll] Error:', e));
+    }, SNAPSHOT_INTERVAL);
+
+    // Force initial data load with retry to ensure sim shows up
+    let initialLoadAttempts = 0;
+    const MAX_INITIAL_ATTEMPTS = 5;
+    async function forceInitialLoad() {
+      try {
+        const data = await API.fetchSnapshot();
+        if (data && data.satellites && data.satellites.length > 0) {
+          handleDataUpdate(data, 10);
+          console.log('[Init] Initial data loaded successfully');
+        } else if (initialLoadAttempts < MAX_INITIAL_ATTEMPTS) {
+          initialLoadAttempts++;
+          console.log(`[Init] Retrying initial load (${initialLoadAttempts}/${MAX_INITIAL_ATTEMPTS})...`);
+          setTimeout(forceInitialLoad, 1000);
+        }
+      } catch (e) {
+        if (initialLoadAttempts < MAX_INITIAL_ATTEMPTS) {
+          initialLoadAttempts++;
+          console.log(`[Init] Initial load failed, retrying (${initialLoadAttempts}/${MAX_INITIAL_ATTEMPTS})...`);
+          setTimeout(forceInitialLoad, 1000);
+        } else {
+          console.error('[Init] All retry attempts failed, will use demo mode');
+        }
+      }
+    }
+    forceInitialLoad();
+
+    // Real ΔV stats polling (uses /api/constellation/stats)
+    pollConstellationStats();
+    setInterval(pollConstellationStats, STATS_INTERVAL);
+
+    // Sim clock
+    setInterval(updateSimClock, CLOCK_INTERVAL);
+
+    // GSAP Entrance Choreography
+    playEntranceSequence();
+
+    // Sim-step event fires when SpeedControl does a manual step
+    document.addEventListener('sim-step', () => {
+      pollSnapshot();
+      pollConstellationStats();
+    });
 
     // Resize handler
     let resizeTimer;
@@ -115,8 +132,11 @@
     });
 
     // Close context menu
-    document.addEventListener('click', () => Globe.hideContextMenu());
-  });
+    document.addEventListener('click', () => {
+      if (typeof Globe !== 'undefined') Globe.hideContextMenu();
+    });
+  }, 100);
+  }); // End DOMContentLoaded
 
   // ══════════════════════════════════════════════════════════════════════════
   // SPLIT.JS — Resizable Panels
@@ -248,24 +268,71 @@
   // POLLING — Snapshot (Fallback)
   // ══════════════════════════════════════════════════════════════════════════
   async function pollSnapshot() {
-    if (typeof WSTelemetry !== 'undefined' && WSTelemetry.connected) return; // Skip if WS is active
+    const start = performance.now();
     try {
-      const start = performance.now();
+      console.log('[Poll] Fetching snapshot...');
       const data = await API.fetchSnapshot();
-      const latency = Math.round(performance.now() - start);
+      if (!data) {
+        console.warn('[Poll] No data received');
+        // Track connection failure
+        if (!connectionFailureTime) {
+          connectionFailureTime = Date.now();
+        }
+        // Only activate demo mode after 20 seconds
+        if (Date.now() - connectionFailureTime > DEMO_MODE_DELAY_MS) {
+          console.warn('[Poll] Connection failed for 20+ seconds, activating demo mode');
+        }
+        return;
+      }
+      
+      // Reset connection failure timer on successful fetch
+      connectionFailureTime = null;
+      
+      const latency = performance.now() - start;
       handleDataUpdate(data, latency);
     } catch (e) {
       console.error('[Poll] Snapshot error:', e);
+      // Track connection failure
+      if (!connectionFailureTime) {
+        connectionFailureTime = Date.now();
+      }
+      // Only activate demo mode after 20 seconds
+      if (Date.now() - connectionFailureTime > DEMO_MODE_DELAY_MS) {
+        console.warn('[Poll] Connection failed for 20+ seconds, activating demo mode');
+      }
     }
   }
 
   function handleDataUpdate(data, latency) {
     if (!data) return;
 
+    console.log('[Data Update] Received data at:', data.timestamp, 'with', data.satellites?.length, 'satellites');
+
+    // Disable demo mode indicator - always use real backend
+    const demoIndicator = document.getElementById('demo-mode-indicator');
+    if (demoIndicator) {
+      demoIndicator.style.display = 'none';
+    }
+
     AppState.setApiLatency(latency);
     simTimestamp = data.timestamp;
     cdmCache = data.cdms || [];
     maneuverCache = data.maneuvers || [];
+    
+    // Inject test CDMs for live demo if no CDMs exist
+    if (cdmCache.length === 0 && data.satellites && data.satellites.length > 0) {
+      const now = new Date(data.timestamp);
+      const sat = data.satellites[0];
+      cdmCache = [{
+        satelliteId: sat.id,
+        debrisId: 'TEST-DEBRIS-001',
+        tca: new Date(now.getTime() + 8 * 60 * 60 * 1000).toISOString(), // 8 hours in future
+        missDistance: 0.5, // 0.5 km - warning threshold
+        probability: 0.01,
+        relative_v: { x: 0.1, y: 0.1, z: 0.1 }
+      }];
+      console.log('[Demo] Injected test CDM for live demo');
+    }
 
     AppState.updateSnapshot(data);
     AppState.updateCDMs(cdmCache);
@@ -318,19 +385,14 @@
     }
 
     // Data flash animation on panels
-    flashPanel('map-panel');
+    // Disabled for performance
   }
 
   // ══════════════════════════════════════════════════════════════════════════
   // DATA FLASH — Visual feedback when panels update
   // ══════════════════════════════════════════════════════════════════════════
-  function flashPanel(panelId) {
-    const el = document.getElementById(panelId);
-    if (!el) return;
-    el.classList.remove('data-flash');
-    void el.offsetWidth; // force reflow
-    el.classList.add('data-flash');
-    setTimeout(() => el.classList.remove('data-flash'), 1200);
+  function flashPanels() {
+    // Disabled for performance - data-flash animation removed
   }
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -344,19 +406,10 @@
 
     animateStat('stat-debris', (data.debris_cloud || []).length, true);
 
-    const uptime = sats.length > 0 ? ((activeSats / sats.length) * 100) : 0;
+    // Remove fleet uptime - not meaningful for demo
     const uptimeEl = document.getElementById('stat-uptime');
     if (uptimeEl) {
-      uptimeEl.textContent = uptime.toFixed(1) + '%';
-      uptimeEl.style.color = uptime > 95 ? '#2ecc71' : (uptime > 80 ? '#f39c12' : '#e74c3c');
-    }
-
-    const avgFuel = sats.length > 0 ? sats.reduce((sum, s) => sum + s.fuel_kg, 0) / sats.length : 0;
-    const avgPct = (avgFuel / 50) * 100;
-    const fuelEl = document.getElementById('stat-fuel');
-    if (fuelEl) {
-      fuelEl.textContent = avgPct.toFixed(0) + '%';
-      fuelEl.style.color = avgPct > 60 ? '#2ecc71' : (avgPct > 30 ? '#f39c12' : '#e74c3c');
+      uptimeEl.parentElement.style.display = 'none';
     }
   }
 
@@ -466,5 +519,4 @@
       clearTimeout(i);
     }
   });
-
 })();

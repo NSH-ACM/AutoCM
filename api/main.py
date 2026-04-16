@@ -45,14 +45,25 @@ async def lifespan(app: FastAPI):
     )
     state.load_catalog(catalog_path)
 
-    # Start background simulation loop
-    sim_task = asyncio.create_task(_simulation_loop())
-    ws_task = asyncio.create_task(_websocket_broadcast_loop())
+    # Start simulation by default for demo
+    if not state.sim_running:
+        state.sim_running = True
+        state.step_seconds = 1
+        state.real_interval_ms = 1000
+        print("[API] Simulation started by default for demo")
 
     print(f"[API] Server ready - {len(state.satellites)} satellites, "
           f"{len(state.debris)} debris tracked")
     print(f"[API] Dashboard: http://localhost:8000")
     print(f"[API] API Docs:  http://localhost:8000/docs")
+
+    # Start background simulation loop
+    sim_task = asyncio.create_task(_simulation_loop())
+    ws_task = asyncio.create_task(_websocket_broadcast_loop())
+    
+    # Add to global list to prevent garbage collection
+    _background_tasks.append(sim_task)
+    _background_tasks.append(ws_task)
 
     yield
 
@@ -206,6 +217,83 @@ async def stop_simulation_sim_alias():
 async def simulation_status_sim_alias():
     return await simulation_get_status()
 
+@app.post("/api/threat/inject")
+async def inject_threat(request: Request):
+    """Inject a threat for a satellite via REST API - creates debris at threatening position."""
+    try:
+        body = await request.json()
+        sat_id = body.get("satellite_id")
+        if sat_id and sat_id in state.satellites:
+            from datetime import datetime, timedelta
+            import numpy as np
+            from api.models import Debris, Vector3
+            from api.core.physics import eci_to_latlon
+            
+            sat = state.satellites[sat_id]
+            
+            # Create debris at threatening position (10 minutes away for demo)
+            sat_r = sat.r.to_np()
+            sat_v = sat.v.to_np()
+            
+            # Calculate where satellite will be in 10 minutes (600 seconds) for demo
+            from api.core.physics import J2RK4Propagator
+            prop = J2RK4Propagator()
+            future_r, future_v = prop.propagate(sat_r, sat_v, 600.0)
+            
+            # Place debris at future position (10 minutes ahead for demo)
+            threat_r = future_r
+            # Debris velocity similar to satellite to maintain near-miss
+            threat_v = future_v
+            
+            # Add small offset to create 0.1 km miss distance at TCA
+            # Offset in normal direction (perpendicular to velocity)
+            v_norm = future_v / np.linalg.norm(future_v)
+            if abs(v_norm[0]) < 0.9:
+                perp = np.cross(v_norm, np.array([1, 0, 0]))
+            else:
+                perp = np.cross(v_norm, np.array([0, 1, 0]))
+            perp = perp / np.linalg.norm(perp)
+            threat_r = threat_r + perp * 0.1
+            
+            # Calculate threat distance for alert
+            threat_distance_km = 0.1
+            
+            # Create debris object
+            debris_id = f"THREAT-{sat_id}-{datetime.now().strftime('%H%M%S')}"
+            deb = Debris(
+                id=debris_id,
+                lat=0, lon=0, alt_km=0,  # Will be calculated
+                r=Vector3.from_np(threat_r),
+                v=Vector3.from_np(threat_v)
+            )
+            
+            # Calculate lat/lon
+            deb.lat, deb.lon, deb.alt_km = eci_to_latlon(threat_r, t=state.sim.sim_time)
+            
+            # Add debris to fleet
+            state.fleet.add_debris(deb)
+            
+            # Trigger conjunction detection
+            sats = list(state.fleet.satellites.values())
+            debs = list(state.fleet.debris.values())
+            print(f"[THREAT] Before screen_fleet: {len(debs)} debris, checking for conjunctions")
+            state.conj.screen_fleet(sats, debs, state.sim.sim_time)
+            print(f"[THREAT] After screen_fleet: {len(state.conj.active_cdms)} CDMs created")
+            
+            state._add_alert("THREAT_INJECTION", "CRITICAL",
+                           f"Threat debris {debris_id} injected at {threat_distance_km}km from {sat_id}", sat_id)
+            
+            return {
+                "status": "success", 
+                "satellite_id": sat_id, 
+                "debris_id": debris_id,
+                "distance_km": threat_distance_km,
+                "message": f"Debris {debris_id} created at threatening position"
+            }
+        return {"status": "error", "message": "Invalid satellite_id"}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
 
 # ═══════════════════════════════════════════════════════════════════════════
 #  WebSocket — Real-time Telemetry Stream
@@ -304,6 +392,9 @@ async def _handle_ws_message(websocket: WebSocket, msg: dict):
 # ═══════════════════════════════════════════════════════════════════════════
 #  Background Loops
 # ═══════════════════════════════════════════════════════════════════════════
+
+# Store task references to prevent garbage collection
+_background_tasks = []
 
 async def _simulation_loop():
     """Background simulation loop — advances state when sim_running=True."""

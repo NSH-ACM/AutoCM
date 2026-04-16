@@ -288,21 +288,13 @@ html, body {
   opacity: 0;
 }
 
-/* Subtle active border flash on data update */
+/* Subtle active border flash on data update - DISABLED to prevent flickering */
 .panel::after {
-  content: '';
-  position: absolute;
-  inset: -1px;
-  pointer-events: none;
-  z-index: 3;
-  opacity: 0;
-  transition: opacity 0.5s ease;
-  background: var(--blue);
+  display: none;
 }
 
 .panel.data-flash::after {
-  opacity: 0.6;
-  animation: data-stream-flow 1s ease-out forwards;
+  display: none;
 }
 
 .panel-content {

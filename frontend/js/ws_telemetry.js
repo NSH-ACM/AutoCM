@@ -47,21 +47,15 @@ const WSTelemetry = (() => {
         const msg = JSON.parse(event.data);
         _handleMessage(msg);
       } catch (e) {
-        console.warn('[WS] Failed to parse message:', e);
+        console.error('[WS] Message parse error:', e);
       }
     };
 
-    ws.onclose = (event) => {
+    ws.onclose = () => {
       isConnected = false;
-      console.log(`[WS] Disconnected (code: ${event.code})`);
-
-      const indicator = document.getElementById('live-indicator');
-      if (indicator) {
-        indicator.classList.remove('connected');
-        indicator.title = 'WebSocket: Disconnected';
-      }
-
-      _scheduleReconnect();
+      console.log('[WS] Disconnected - reconnecting in 2s...');
+      // Auto-reconnect after 2 seconds
+      setTimeout(connect, 2000);
     };
 
     ws.onerror = (error) => {

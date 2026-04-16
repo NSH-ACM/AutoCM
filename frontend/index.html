@@ -10,10 +10,9 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@300;400;500;600&family=Orbitron:wght@400;600;700&display=swap" rel="stylesheet">
 
-  <!-- CesiumJS -->
-  <link rel="stylesheet" href="https://cesium.com/downloads/cesiumjs/releases/1.114/Build/Cesium/Widgets/widgets.css">
-  <script src="https://cesium.com/downloads/cesiumjs/releases/1.114/Build/Cesium/Cesium.js"></script>
-
+  <!-- CesiumJS (3D Globe) - DISABLED for performance -->
+  <!-- <script src="https://cesium.com/downloads/cesiumjs/releases/1.114/Build/Cesium/Cesium.js"></script>
+  <link href="https://cesium.com/downloads/cesiumjs/releases/1.114/Build/Cesium/Widgets/widgets.css" rel="stylesheet"> -->
   <!-- D3 / GSAP / Split.js / Lucide / TopoJSON -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
@@ -33,6 +32,11 @@
 
   <!-- ── Toast container ── -->
   <div id="toast-container"></div>
+
+  <!-- ── Demo mode indicator ── -->
+  <div id="demo-mode-indicator" style="position:fixed;top:80px;right:20px;background:#f85149;color:white;padding:8px 16px;border-radius:4px;font-family:JetBrains Mono,monospace;font-size:12px;z-index:1000;display:none;">
+    ⚠️ DEMO MODE - Backend not connected
+  </div>
 
   <!-- ── Satellite detail drawer ── -->
   <div id="drawer-overlay"></div>
@@ -55,15 +59,9 @@
     <!-- TOP BAR -->
     <header id="topbar">
       <div class="topbar-left">
-        <span class="topbar-logo">ORBITAL INSIGHT</span>
-        <span class="topbar-separator">|</span>
-        <span class="topbar-mission">ACM // CONSTELLATION-1</span>
+        <div class="topbar-logo">ACM</div>
       </div>
-
-      <div class="topbar-center">
-        <div class="live-dot" id="live-indicator"></div>
-        <span class="sim-clock typing-cursor" id="sim-clock">SIM 2026-03-12 08:00:00Z</span>
-      </div>
+      <span class="sim-clock typing-cursor" id="sim-clock">SIM 2026-03-12 08:00:00Z</span>
 
       <div class="topbar-right">
         <div class="view-toggle-group">
@@ -76,10 +74,7 @@
             <span>Charts</span>
           </button>
         </div>
-        <div class="map-toggle-group">
-          <button id="toggle-3d" class="map-toggle-btn">3D</button>
-          <button id="toggle-2d" class="map-toggle-btn active">2D</button>
-        </div>
+        <!-- 3D toggle removed for performance -->
         <div class="stat-chip" id="chip-sats">
           <span class="label">ACTIVE SATS</span>
           <span class="value text-blue" id="stat-sats">0</span>
@@ -90,11 +85,7 @@
         </div>
         <div class="stat-chip" id="chip-uptime">
           <span class="label">FLEET UPTIME</span>
-          <span class="value text-green" id="stat-uptime">—</span>
-        </div>
-        <div class="stat-chip" id="chip-alerts">
-          <span class="label">ALERTS</span>
-          <span class="value text-amber" id="stat-alerts">0</span>
+          <span class="value text-blue" id="stat-uptime">0%</span>
         </div>
       </div>
     </header>
@@ -112,8 +103,8 @@
           <div class="panel-content">
             <div id="cesium-container" style="display: none;"></div>
             <div id="groundtrack-svg-container" style="position:relative;width:100%;height:100%;">
-              <canvas id="debris-canvas" style="position:absolute;top:0;left:0;pointer-events:none;"></canvas>
-              <svg id="groundtrack-svg" style="position:absolute;top:0;left:0;"></svg>
+              <canvas id="debris-canvas" style="position:absolute;top:0;left:0;pointer-events:none;z-index:1;"></canvas>
+              <svg id="groundtrack-svg" style="position:absolute;top:0;left:0;z-index:2;"></svg>
             </div>
           </div>
           <div class="globe-tooltip" id="globe-tooltip">
@@ -216,18 +207,19 @@
               </div>
               
               <div id="extras-content" style="display: flex; flex-direction: column; gap: 12px;">
-                <!-- Mission Alerts Feed -->
-                <div id="alerts-panel" class="extras-section">
-                  <div class="panel-title panel-title-alerts" style="font-size: 10px;">
-                    <span class="panel-title-left">
-                      <i data-lucide="bell"></i>
-                      MISSION ALERTS
-                    </span>
-                    <span id="alert-count-badge" class="alert-count-badge">0</span>
+                <!-- Mission Alerts Panel -->
+                <div class="panel glass-panel" id="alerts-panel">
+                  <div class="panel-content">
+                    <div class="panel-title panel-title-alerts">
+                      <div class="panel-title-left">
+                        <i data-lucide="bell"></i>
+                        <span>MISSION ALERTS</span>
+                      </div>
+                      <span class="alert-count-badge" id="alert-count-badge">0</span>
+                    </div>
+                    <div id="alert-list"></div>
                   </div>
-                  <div id="alert-list" style="max-height: 200px; overflow-y: auto;"></div>
                 </div>
-
                 <!-- System Health -->
                 <div class="health-section">
                   <div class="health-section-header" style="font-size: 10px;">
@@ -284,8 +276,9 @@
   <script src="js/state.js?v=3"></script>
   <script src="js/api.js?v=3"></script>
   <script src="js/ws_telemetry.js?v=3"></script>
-  <script src="js/globe.js?v=4"></script>
-  <script src="js/groundTrack.js?v=3"></script>
+  <!-- globe.js disabled - Cesium removed for performance -->
+  <!-- <script src="js/globe.js?v=4"></script> -->
+  <script src="js/groundTrack.js?v=4"></script>
   <script src="js/bullseye.js?v=3"></script>
   <script src="js/fuel.js?v=3"></script>
   <script src="js/gantt.js?v=3"></script>

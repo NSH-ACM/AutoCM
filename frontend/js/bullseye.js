@@ -157,6 +157,12 @@ const Bullseye = (() => {
     const ly =  radius - 6;
     const legend = g.append('g').attr('transform', `translate(${lx},${ly})`);
 
+    const CONFIG = {
+      radius: 180,
+      innerRadius: 50,
+      maxMissDistance: 10.0,
+    };
+
     const items = [
       { color: '#3fb950', label: '≥5 km — Safe' },
       { color: '#d29922', label: '<5 km — Warning' },
@@ -164,15 +170,14 @@ const Bullseye = (() => {
     ];
 
     items.forEach(({ color, label }, i) => {
-      const row = legend.append('g').attr('transform', `translate(0,${-i * 18})`);
-      row.append('circle').attr('r', 5).attr('fill', color).attr('cy', -1);
+      const row = legend.append('g').attr('transform', `translate(0,${-i * 16})`);
+      row.append('circle').attr('r', 4).attr('fill', color).attr('cy', -1);
       row.append('text')
-        .attr('x', 10)
+        .attr('x', 7)
+        .attr('y', 1)
         .attr('fill', '#8b949e')
-        .attr('font-size', '11px')
+        .attr('font-size', '8px')
         .attr('font-family', 'JetBrains Mono, monospace')
-        .attr('dominant-baseline', 'central')
-        .attr('y', -1)
         .text(label);
     });
   }
@@ -296,6 +301,58 @@ const Bullseye = (() => {
     circles.exit().transition().duration(300).attr('r', 0).remove();
   }
 
+  // ── Update Debris ─────────────────────────────────────────────────────────────
+  function updateDebris(debrisCloud) {
+    if (!debrisCloud || !debrisCloud.length) {
+      g.selectAll('.debris-dot').remove();
+      return;
+    }
+
+    // Subsample debris for performance (1 in 2 - show more for better visibility)
+    const SUBSAMPLE = 1;
+    const displayDebris = [];
+    for (let i = 0; i < debrisCloud.length; i += SUBSAMPLE) {
+      displayDebris.push(debrisCloud[i]);
+    }
+
+    // D3 data join
+    const debrisGroup = g.select('.debris-group');
+    const circles = debrisGroup.selectAll('.debris-dot')
+      .data(displayDebris, (d, i) => (d.debrisId || '') + '-' + i);
+
+    // Enter
+    const enter = circles.enter()
+      .append('circle')
+      .attr('class', 'debris-dot')
+      .attr('cx', d => d.x)
+      .attr('cy', d => d.y)
+      .attr('r', 0)
+      .attr('fill', d => d.color)
+      .attr('opacity', 0.9)
+      .style('cursor', 'pointer')
+      .on('click', (event, d) => {
+        if (typeof AppState !== 'undefined') AppState.selectSatellite(d.satelliteId);
+      });
+
+    enter.append('title')
+      .text(d => `${d.debrisId || 'Unknown'}\nMiss: ${d.missDistance?.toFixed(3)} km\nTCA: T-${d.hoursToTCA.toFixed(1)}h\nBearing: ${d.angleDeg.toFixed(0)}°\nP(coll): ${((d.probability || 0) * 100).toFixed(4)}%`);
+
+    enter.transition().duration(500).attr('r', d => d.size);
+
+    // Update
+    circles.transition().duration(400)
+      .attr('cx', d => d.x)
+      .attr('cy', d => d.y)
+      .attr('r', d => d.size)
+      .attr('fill', d => d.color);
+
+    circles.select('title')
+      .text(d => `${d.debrisId || 'Unknown'}\nMiss: ${d.missDistance?.toFixed(3)} km\nTCA: T-${d.hoursToTCA.toFixed(1)}h\nBearing: ${d.angleDeg.toFixed(0)}°\nP(coll): ${((d.probability || 0) * 100).toFixed(4)}%`);
+
+    // Exit
+    circles.exit().transition().duration(300).attr('r', 0).remove();
+  }
+
   // ── Resize ────────────────────────────────────────────────────────────────
   function resize() {
     isInitialized = false;
@@ -305,5 +362,5 @@ const Bullseye = (() => {
     init();
   }
 
-  return { init, update, resize, setSatellitePositions };
+  return { init, update, resize, setSatellitePositions, updateDebris };
 })();

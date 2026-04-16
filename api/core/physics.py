@@ -26,7 +26,7 @@ class J2RK4Propagator:
         Includes Two-Body gravity and optional J2 perturbation.
         """
         r_mag = np.linalg.norm(r)
-        if r_mag < 100.0:  # Surface/Center trap - prevent NaN/Inf
+        if r_mag < 6300.0:  # Surface/Center trap - prevent NaN/Inf (Earth radius ~6371km, buffer for LEO)
             return np.zeros(3)
 
         # 1. Two-Body (Point Mass) Acceleration

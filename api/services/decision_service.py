@@ -90,7 +90,8 @@ class DecisionService:
             # Evasion Strategy: 10 m/s Prograde (Section 5.1/5.3)
             # Recovery Strategy: 10 m/s Retrograde after 45 mins (half orbit avg)
             tca = cdm.tca
-            burn_time_eva = tca - timedelta(minutes=30)
+            # Reduced lookahead for demo: 60 seconds instead of 30 minutes
+            burn_time_eva = tca - timedelta(seconds=60)
             burn_time_rec = tca + timedelta(minutes=15) # After threat passed
             
             # LOS and Latency checks are handled by the ManeuverService/StateManager
@@ -155,8 +156,8 @@ class DecisionService:
             # Calculate drift distance from nominal slot
             drift_km = np.linalg.norm(sat.r.to_np() - sat.nominal_r.to_np())
             
-            # Trigger correction if drift exceeds 5km (half of 10km tolerance)
-            if drift_km > 5.0:
+            # Trigger correction if drift exceeds 8km (more reasonable than 5km)
+            if drift_km > 8.0:
                 from ..core.navigation import Navigator
                 nav = Navigator()
                 

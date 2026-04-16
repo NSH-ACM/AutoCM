@@ -241,6 +241,11 @@
   position: relative;
 }
 
+/* Smooth transitions for satellite markers */
+.sat-marker {
+  transition: cx 0.5s ease-out, cy 0.5s ease-out, r 0.2s ease;
+}
+
 #groundtrack-svg-container {
   flex: 1;
   min-height: 0;
@@ -532,7 +537,7 @@
 
 /* ── CDM List ───────────────────────────────────────────────────────────── */
 .cdm-section {
-  flex: 1;
+  flex: 0 0 200px;
   min-height: 0;
   overflow-y: auto;
   border-bottom: 1px solid var(--border-dim);
@@ -541,8 +546,8 @@
 .cdm-row {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px var(--panel-pad);
+  gap: 6px;
+  padding: 4px 8px;
   border-bottom: 1px solid var(--border-dim);
   cursor: pointer;
   transition: all 0.2s ease;
@@ -615,9 +620,9 @@
 
 /* ── ΔV Cost Graph ──────────────────────────────────────────────────────── */
 .dv-section {
-  padding: var(--panel-pad);
+  padding: 8px 12px;
   border-bottom: 1px solid var(--border-dim);
-  height: 100px;
+  height: 150px;
 }
 
 .dv-section-header {
@@ -639,7 +644,7 @@
 
 #dv-chart {
   width: 100%;
-  height: 52px;
+  height: 100px;
 }
 
 .dv-annotation {
@@ -658,7 +663,7 @@
 
 /* ── System Health ──────────────────────────────────────────────────────── */
 .health-section {
-  padding: var(--panel-pad);
+  padding: 8px 12px;
 }
 
 .health-section-header {

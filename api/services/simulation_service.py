@@ -64,12 +64,15 @@ class SimulationService:
         initial_time = self.sim_time
         target_time = initial_time + timedelta(seconds=dt)
         
+        print(f"[SIM] Step: {dt}s from {initial_time} to {target_time}")
+        
         maneuvers_executed = 0
         collisions_detected = 0
 
         # ── 1. Propagate Satellites ──────────────────────────────────────────
         for sat_id, sat in self.fleet.satellites.items():
             if sat.status == "EOL": continue
+            print(f"[SIM] Propagating {sat_id} from lat={sat.lat:.2f}")
             
             # Check for scheduled burns in this window
             pending = self.maneuver.get_pending_burns(sat_id, initial_time, target_time)
@@ -120,11 +123,10 @@ class SimulationService:
             # Use same J2 propagator for consistency (v2 Goal)
             new_r, new_v = self.propagator.propagate(curr_r, curr_v, dt)
             
-            # Update debris registry (flat update)
-            from ..core.physics import eci_to_latlon
+            # Update debris registry (flat update) - only position/velocity
+            # lat/lon/alt calculated on-demand for snapshot to save CPU
             deb.r.x, deb.r.y, deb.r.z = new_r
             deb.v.x, deb.v.y, deb.v.z = new_v
-            deb.lat, deb.lon, deb.alt_km = eci_to_latlon(new_r, t=target_time)
 
         # ── 3. Screen for Conjunctions ───────────────────────────────────────
         sats = list(self.fleet.satellites.values())
