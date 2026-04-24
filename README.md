@@ -7,17 +7,6 @@
 ## ⚠️ Project Status: ARCHIVED
 
 **This project has been archived as a hackathon trophy.** All core features have been migrated to the production-ready [Astrosis](https://github.com/UtkarshJoshiNtl/Astrosis) project.
-
-**Migrated Features:**
-- ✅ RTN frame navigation for optimal fuel efficiency
-- ✅ Ground station LOS calculations with Earth rotation
-- ✅ Autonomous decision logic for collision avoidance
-- ✅ WebSocket real-time telemetry streaming
-- ✅ D3.js visualization components (Gantt, Bullseye, Fuel gauges)
-- ✅ Alert system with toast notifications
-
-**Please use Astrosis for production deployment and continued development.**
-
 ---
 
 ## Project Overview (Historical)
