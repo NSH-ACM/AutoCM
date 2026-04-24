@@ -1,14 +1,28 @@
 # AutoCM v2 — Autonomous Constellation Manager
 
-**National Space Hackathon 2026**
+**National Space Hackathon 2026 — Trophy Project**
 
 ---
 
-## Project Overview
+## ⚠️ Project Status: ARCHIVED
 
-AutoCM v2 is a high-performance, **Pure Python** autonomous constellation management system. It has been re-architected for maximum reliability and maintainability without sacrificing the millisecond-latency performance required for real-time debris avoidance in Low Earth Orbit (LEO). 
+**This project has been archived as a hackathon trophy.** All core features have been migrated to the production-ready [Astrosis](https://github.com/UtkarshJoshiNtl/Astrosis) project.
 
-The system utilizes a J2-aware RK4 propagator and `cKDTree`-optimized proximity screening to manage 10,000+ orbital objects with high fidelity and zero C++ build complexity.
+**Migrated Features:**
+- ✅ RTN frame navigation for optimal fuel efficiency
+- ✅ Ground station LOS calculations with Earth rotation
+- ✅ Autonomous decision logic for collision avoidance
+- ✅ WebSocket real-time telemetry streaming
+- ✅ D3.js visualization components (Gantt, Bullseye, Fuel gauges)
+- ✅ Alert system with toast notifications
+
+**Please use Astrosis for production deployment and continued development.**
+
+---
+
+## Project Overview (Historical)
+
+AutoCM v2 was a high-performance, **Pure Python** autonomous constellation management system designed for the National Space Hackathon 2026. It utilized a J2-aware RK4 propagator and `cKDTree`-optimized proximity screening to manage 10,000+ orbital objects with high fidelity and zero C++ build complexity.
 
 ### Key Achievements
 
